@@ -42,8 +42,23 @@ export const useSocketLobby = () => {
 
   // Initialize socket connection for WebContainer
   useEffect(() => {
-    // In WebContainer, we need to connect to the current origin with port 3001
-    const socketUrl = `${window.location.protocol}//${window.location.hostname}:3001`
+    // Determine the correct socket URL based on environment
+    let socketUrl: string
+    
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      // Local development
+      socketUrl = `${window.location.protocol}//${window.location.hostname}:3001`
+    } else if (window.location.hostname.includes('webcontainer-api.io')) {
+      // WebContainer environment - replace the frontend port with backend port
+      const currentUrl = window.location.hostname
+      // Replace the frontend port (5173) with backend port (3001) in the hostname
+      const backendHostname = currentUrl.replace('--5173--', '--3001--')
+      socketUrl = `${window.location.protocol}//${backendHostname}`
+    } else {
+      // Fallback for other environments
+      socketUrl = `${window.location.protocol}//${window.location.hostname}:3001`
+    }
+    
     console.log('🔌 Connecting to Socket.IO server at:', socketUrl)
     
     const newSocket = io(socketUrl, {
