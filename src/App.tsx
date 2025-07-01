@@ -13,7 +13,7 @@ import { GameSettings, GridSize } from './types'
 type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game' | 'connection-test' | 'lobby-diagnostic'
 
 function App() {
-  const [appMode, setAppMode] = useState<AppMode>('lobby-diagnostic') // Start with lobby diagnostic
+  const [appMode, setAppMode] = useState<AppMode>('lobby') // Switch to lobby as default
   const [settings, setSettings] = useState<GameSettings>({
     gridSize: 9 as GridSize,
     treasureCount: 5,
@@ -101,29 +101,37 @@ function App() {
         {/* Mode Navigation */}
         <div className="flex flex-wrap gap-2 text-xs">
           <button
-            onClick={() => setAppMode('lobby-diagnostic')}
-            className={`px-3 py-1 rounded ${appMode === 'lobby-diagnostic' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
+            onClick={() => setAppMode('lobby')}
+            className={`px-3 py-1 rounded ${appMode === 'lobby' ? 'bg-emerald-600 text-white' : 'bg-gray-200'}`}
           >
-            Lobby Diagnostic
-          </button>
-          <button
-            onClick={() => setAppMode('connection-test')}
-            className={`px-3 py-1 rounded ${appMode === 'connection-test' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-          >
-            Connection Test
+            🎮 Lobby
           </button>
           <button
             onClick={() => setAppMode('introduction')}
-            className={`px-3 py-1 rounded ${appMode === 'introduction' ? 'bg-emerald-600 text-white' : 'bg-gray-200'}`}
+            className={`px-3 py-1 rounded ${appMode === 'introduction' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
           >
-            Introduction
+            📖 Introduction
           </button>
           <button
-            onClick={() => setAppMode('lobby')}
-            className={`px-3 py-1 rounded ${appMode === 'lobby' ? 'bg-amber-600 text-white' : 'bg-gray-200'}`}
+            onClick={() => setAppMode('lobby-diagnostic')}
+            className={`px-3 py-1 rounded ${appMode === 'lobby-diagnostic' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
           >
-            Lobby
+            🔍 Diagnostics
           </button>
+          <button
+            onClick={() => setAppMode('connection-test')}
+            className={`px-3 py-1 rounded ${appMode === 'connection-test' ? 'bg-orange-600 text-white' : 'bg-gray-200'}`}
+          >
+            🔧 Connection Test
+          </button>
+          {ENABLE_PRIVATE_GAMES && (
+            <button
+              onClick={() => setAppMode('private-setup')}
+              className={`px-3 py-1 rounded ${appMode === 'private-setup' ? 'bg-amber-600 text-white' : 'bg-gray-200'}`}
+            >
+              🔒 Private Games
+            </button>
+          )}
         </div>
 
         {/* Lobby System Diagnostic */}
@@ -221,10 +229,10 @@ function App() {
           <div className="text-center">
             <p className="text-red-600">Unknown app state: {appMode}</p>
             <button
-              onClick={() => setAppMode('lobby-diagnostic')}
+              onClick={() => setAppMode('lobby')}
               className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg"
             >
-              Return to Diagnostics
+              Return to Lobby
             </button>
           </div>
         )}
