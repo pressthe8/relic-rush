@@ -3,9 +3,15 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-// Load environment variables
-dotenv.config();
+// Get current directory for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load environment variables from server directory
+dotenv.config({ path: join(__dirname, '.env') });
 
 const app = express();
 const server = createServer(app);
@@ -20,6 +26,14 @@ const io = new Server(server, {
   allowEIO3: true, // Allow Engine.IO v3 clients
   transports: ['websocket', 'polling'] // Enable both transport methods
 });
+
+// Validate environment variables
+if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY) {
+  console.error('❌ Missing required environment variables:');
+  console.error('VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL ? '✅' : '❌');
+  console.error('VITE_SUPABASE_ANON_KEY:', process.env.VITE_SUPABASE_ANON_KEY ? '✅' : '❌');
+  process.exit(1);
+}
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -229,7 +243,9 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     lobbyPlayers: lobbyState.players.size,
     currentGame: lobbyState.currentGame?.game_code || 'none',
-    environment: 'webcontainer'
+    environment: 'webcontainer',
+    supabaseUrl: process.env.VITE_SUPABASE_URL ? 'configured' : 'missing',
+    supabaseKey: process.env.VITE_SUPABASE_ANON_KEY ? 'configured' : 'missing'
   });
 });
 
@@ -374,18 +390,30 @@ io.on('connection', (socket) => {
 const initializeLobby = async () => {
   console.log('🚀 Initializing lobby system...');
   
-  // Clean up any existing lobby games
-  await supabase
-    .from('game_sessions')
-    .update({ status: 'cancelled' })
-    .eq('is_lobby_game', true)
-    .in('status', ['scheduled', 'waiting']);
-  
-  // Create initial lobby game
-  lobbyState.currentGame = await ensureLobbyGame();
-  setupGameTimer();
-  
-  console.log('✅ Lobby system initialized');
+  try {
+    // Test Supabase connection
+    const { data, error } = await supabase.from('game_sessions').select('count').limit(1);
+    if (error) {
+      console.error('❌ Supabase connection failed:', error);
+      return;
+    }
+    console.log('✅ Supabase connection successful');
+    
+    // Clean up any existing lobby games
+    await supabase
+      .from('game_sessions')
+      .update({ status: 'cancelled' })
+      .eq('is_lobby_game', true)
+      .in('status', ['scheduled', 'waiting']);
+    
+    // Create initial lobby game
+    lobbyState.currentGame = await ensureLobbyGame();
+    setupGameTimer();
+    
+    console.log('✅ Lobby system initialized');
+  } catch (error) {
+    console.error('❌ Failed to initialize lobby system:', error);
+  }
 };
 
 // Start server
@@ -395,6 +423,10 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Socket.IO server running on port ${PORT}`);
   console.log(`🌐 CORS enabled for WebContainer environment`);
   console.log(`🔗 Server accessible at: http://localhost:${PORT}`);
+  console.log(`📊 Environment variables loaded:`, {
+    supabaseUrl: process.env.VITE_SUPABASE_URL ? 'configured' : 'missing',
+    supabaseKey: process.env.VITE_SUPABASE_ANON_KEY ? 'configured' : 'missing'
+  });
   initializeLobby();
 });
 
