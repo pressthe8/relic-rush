@@ -10,14 +10,15 @@ dotenv.config();
 const app = express();
 const server = createServer(app);
 
-// Configure Socket.IO with proper CORS settings
+// Configure Socket.IO with WebContainer-compatible CORS settings
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://127.0.0.1:5173"], // Allow both localhost and 127.0.0.1
+    origin: true, // Allow all origins in WebContainer environment
     methods: ["GET", "POST"],
     credentials: true
   },
-  allowEIO3: true // Allow Engine.IO v3 clients
+  allowEIO3: true, // Allow Engine.IO v3 clients
+  transports: ['websocket', 'polling'] // Enable both transport methods
 });
 
 // Initialize Supabase client
@@ -227,7 +228,8 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     lobbyPlayers: lobbyState.players.size,
-    currentGame: lobbyState.currentGame?.game_code || 'none'
+    currentGame: lobbyState.currentGame?.game_code || 'none',
+    environment: 'webcontainer'
   });
 });
 
@@ -389,9 +391,10 @@ const initializeLobby = async () => {
 // Start server
 const PORT = process.env.PORT || 3001;
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Socket.IO server running on port ${PORT}`);
-  console.log(`🌐 CORS enabled for: http://localhost:5173, http://127.0.0.1:5173`);
+  console.log(`🌐 CORS enabled for WebContainer environment`);
+  console.log(`🔗 Server accessible at: http://localhost:${PORT}`);
   initializeLobby();
 });
 

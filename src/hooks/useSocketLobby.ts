@@ -40,9 +40,18 @@ export const useSocketLobby = () => {
     playerMockId: generateMockPlayerId()
   })
 
-  // Initialize socket connection
+  // Initialize socket connection for WebContainer
   useEffect(() => {
-    const newSocket = io('http://localhost:3001')
+    // In WebContainer, we need to connect to the current origin with port 3001
+    const socketUrl = `${window.location.protocol}//${window.location.hostname}:3001`
+    console.log('🔌 Connecting to Socket.IO server at:', socketUrl)
+    
+    const newSocket = io(socketUrl, {
+      transports: ['websocket', 'polling'], // Try websocket first, fallback to polling
+      timeout: 20000,
+      forceNew: true
+    })
+    
     setSocket(newSocket)
 
     // Connection events
@@ -55,6 +64,15 @@ export const useSocketLobby = () => {
     newSocket.on('disconnect', () => {
       console.log('🔌 Disconnected from lobby server')
       setLobbyState(prev => ({ ...prev, isConnected: false }))
+    })
+
+    newSocket.on('connect_error', (error) => {
+      console.error('🔌 Connection error:', error)
+      setLobbyState(prev => ({ 
+        ...prev, 
+        isConnected: false, 
+        error: `Connection failed: ${error.message}` 
+      }))
     })
 
     // Lobby events
@@ -118,11 +136,12 @@ export const useSocketLobby = () => {
 
     newSocket.on('gameStarting', (data) => {
       console.log('🚀 Game is starting:', data.gameId)
-      // Redirect to game
-      window.location.href = `/game/${data.gameId}`
+      // Redirect to game - in WebContainer, we'll use the current URL structure
+      window.location.href = `${window.location.origin}/#/game/${data.gameId}`
     })
 
     return () => {
+      console.log('🔌 Cleaning up socket connection')
       newSocket.close()
     }
   }, [])
