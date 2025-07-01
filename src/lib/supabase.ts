@@ -3,67 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase environment variables')
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false
-  },
-  global: {
-    headers: {
-      'apikey': supabaseAnonKey
-    }
-  }
-})
-
-// Connection state management
-let connectionState: 'unknown' | 'connected' | 'failed' = 'unknown'
-let lastConnectionTest = 0
-const CONNECTION_TEST_COOLDOWN = 5000 // 5 seconds
-
-// Test Supabase connection with caching
-export const testSupabaseConnection = async (): Promise<boolean> => {
-  const now = Date.now()
-  
-  // Return cached result if within cooldown period
-  if (connectionState !== 'unknown' && (now - lastConnectionTest) < CONNECTION_TEST_COOLDOWN) {
-    return connectionState === 'connected'
-  }
-
-  try {
-    console.log('🔍 Testing Supabase connectivity...')
-    const { error } = await supabase
-      .from('game_sessions')
-      .select('id')
-      .limit(1)
-    
-    if (error) {
-      console.error('❌ Connection test failed:', error)
-      connectionState = 'failed'
-      lastConnectionTest = now
-      return false
-    }
-    
-    console.log('✅ Connection test successful')
-    connectionState = 'connected'
-    lastConnectionTest = now
-    return true
-  } catch (error) {
-    console.error('❌ Connection test failed:', error)
-    connectionState = 'failed'
-    lastConnectionTest = now
-    return false
-  }
-}
-
-// Reset connection state (useful for manual retry)
-export const resetConnectionState = () => {
-  connectionState = 'unknown'
-  lastConnectionTest = 0
-}
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Generate a mock player ID for testing
 export const generateMockPlayerId = (): string => {
