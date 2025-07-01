@@ -25,232 +25,13 @@ export const LobbySystemDiagnostic: React.FC = () => {
     ))
   }
 
-  // Test 1: Exact failing query in isolation
-  const testExactFailingQuery = async () => {
-    setCurrentStep('Testing exact failing query...')
+  // Test 1: Direct API call bypassing Supabase client
+  const testDirectAPICall = async () => {
+    setCurrentStep('Testing direct API call...')
     addResult({
-      test: '1. Exact Failing Query',
+      test: '1. Direct API Call',
       status: 'pending',
-      message: 'Testing the exact query that fails in GameLobby...'
-    })
-
-    try {
-      console.log('🔍 Testing exact lobby query that fails...')
-      
-      // This is the EXACT query from GameLobby.tsx line 37
-      const { data: lobbyGame, error: gameError } = await supabase
-        .from('game_sessions')
-        .select('*')
-        .eq('is_lobby_game', true)
-        .eq('status', 'scheduled')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      if (gameError) {
-        updateResult('1. Exact Failing Query', {
-          status: 'error',
-          message: `Query failed: ${gameError.message}`,
-          details: gameError,
-          query: "supabase.from('game_sessions').select('*').eq('is_lobby_game', true).eq('status', 'scheduled').order('created_at', { ascending: false }).limit(1).maybeSingle()"
-        })
-        return false
-      }
-
-      updateResult('1. Exact Failing Query', {
-        status: 'success',
-        message: `Query succeeded! Found: ${lobbyGame ? 'lobby game' : 'no lobby game'}`,
-        details: lobbyGame,
-        query: "supabase.from('game_sessions').select('*').eq('is_lobby_game', true).eq('status', 'scheduled').order('created_at', { ascending: false }).limit(1).maybeSingle()"
-      })
-      return true
-    } catch (error) {
-      updateResult('1. Exact Failing Query', {
-        status: 'error',
-        message: `Network/JS error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        details: error
-      })
-      return false
-    }
-  }
-
-  // Test 2: RLS policies for anonymous users
-  const testRLSPolicies = async () => {
-    setCurrentStep('Testing RLS policies...')
-    addResult({
-      test: '2. RLS Policies',
-      status: 'pending',
-      message: 'Testing Row Level Security policies for anonymous access...'
-    })
-
-    try {
-      // Test basic read access
-      const { data: basicRead, error: basicError } = await supabase
-        .from('game_sessions')
-        .select('id, status')
-        .limit(1)
-
-      if (basicError) {
-        updateResult('2. RLS Policies', {
-          status: 'error',
-          message: `Basic read blocked by RLS: ${basicError.message}`,
-          details: basicError
-        })
-        return false
-      }
-
-      // Test lobby-specific access
-      const { data: lobbyRead, error: lobbyError } = await supabase
-        .from('game_sessions')
-        .select('id, is_lobby_game, status')
-        .eq('is_lobby_game', true)
-
-      if (lobbyError) {
-        updateResult('2. RLS Policies', {
-          status: 'error',
-          message: `Lobby read blocked by RLS: ${lobbyError.message}`,
-          details: lobbyError
-        })
-        return false
-      }
-
-      updateResult('2. RLS Policies', {
-        status: 'success',
-        message: `RLS allows access. Found ${basicRead?.length || 0} total games, ${lobbyRead?.length || 0} lobby games`,
-        details: { totalGames: basicRead?.length, lobbyGames: lobbyRead?.length }
-      })
-      return true
-    } catch (error) {
-      updateResult('2. RLS Policies', {
-        status: 'error',
-        message: `RLS test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        details: error
-      })
-      return false
-    }
-  }
-
-  // Test 3: Database functions exist and are callable
-  const testDatabaseFunctions = async () => {
-    setCurrentStep('Testing database functions...')
-    addResult({
-      test: '3. Database Functions',
-      status: 'pending',
-      message: 'Testing if lobby management functions exist and work...'
-    })
-
-    try {
-      // Test ensure_lobby_game_available function
-      const { data: ensureResult, error: ensureError } = await supabase
-        .rpc('ensure_lobby_game_available')
-
-      if (ensureError) {
-        updateResult('3. Database Functions', {
-          status: 'error',
-          message: `ensure_lobby_game_available failed: ${ensureError.message}`,
-          details: ensureError
-        })
-        return false
-      }
-
-      // Test create_lobby_game function
-      const { data: createResult, error: createError } = await supabase
-        .rpc('create_lobby_game')
-
-      if (createError) {
-        updateResult('3. Database Functions', {
-          status: 'warning',
-          message: `create_lobby_game failed (may be expected): ${createError.message}`,
-          details: { ensureResult, createError }
-        })
-      } else {
-        updateResult('3. Database Functions', {
-          status: 'success',
-          message: 'All lobby functions working correctly',
-          details: { ensureResult, createResult }
-        })
-      }
-      return true
-    } catch (error) {
-      updateResult('3. Database Functions', {
-        status: 'error',
-        message: `Function test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        details: error
-      })
-      return false
-    }
-  }
-
-  // Test 4: Check if there's actual data in the database
-  const testDataIntegrity = async () => {
-    setCurrentStep('Checking data integrity...')
-    addResult({
-      test: '4. Data Integrity',
-      status: 'pending',
-      message: 'Checking if lobby games exist and have valid data...'
-    })
-
-    try {
-      // Check all game sessions
-      const { data: allGames, error: allError } = await supabase
-        .from('game_sessions')
-        .select('*')
-
-      if (allError) {
-        updateResult('4. Data Integrity', {
-          status: 'error',
-          message: `Cannot read game sessions: ${allError.message}`,
-          details: allError
-        })
-        return false
-      }
-
-      // Check lobby games specifically
-      const { data: lobbyGames, error: lobbyError } = await supabase
-        .from('game_sessions')
-        .select('*')
-        .eq('is_lobby_game', true)
-
-      if (lobbyError) {
-        updateResult('4. Data Integrity', {
-          status: 'error',
-          message: `Cannot read lobby games: ${lobbyError.message}`,
-          details: lobbyError
-        })
-        return false
-      }
-
-      // Check scheduled lobby games
-      const scheduledGames = lobbyGames?.filter(g => g.status === 'scheduled') || []
-
-      updateResult('4. Data Integrity', {
-        status: scheduledGames.length > 0 ? 'success' : 'warning',
-        message: `Found ${allGames?.length || 0} total games, ${lobbyGames?.length || 0} lobby games, ${scheduledGames.length} scheduled`,
-        details: { 
-          totalGames: allGames?.length, 
-          lobbyGames: lobbyGames?.length, 
-          scheduledGames: scheduledGames.length,
-          sampleGame: scheduledGames[0] || lobbyGames?.[0] || allGames?.[0]
-        }
-      })
-      return true
-    } catch (error) {
-      updateResult('4. Data Integrity', {
-        status: 'error',
-        message: `Data check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        details: error
-      })
-      return false
-    }
-  }
-
-  // Test 5: Network connectivity to Supabase specifically
-  const testNetworkConnectivity = async () => {
-    setCurrentStep('Testing network connectivity...')
-    addResult({
-      test: '5. Network Connectivity',
-      status: 'pending',
-      message: 'Testing network access to Supabase API...'
+      message: 'Bypassing Supabase client to test raw API access...'
     })
 
     try {
@@ -258,7 +39,7 @@ export const LobbySystemDiagnostic: React.FC = () => {
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
       if (!supabaseUrl || !supabaseKey) {
-        updateResult('5. Network Connectivity', {
+        updateResult('1. Direct API Call', {
           status: 'error',
           message: 'Missing environment variables',
           details: { hasUrl: !!supabaseUrl, hasKey: !!supabaseKey }
@@ -266,34 +47,36 @@ export const LobbySystemDiagnostic: React.FC = () => {
         return false
       }
 
-      // Test direct fetch to Supabase REST API
-      const response = await fetch(`${supabaseUrl}/rest/v1/game_sessions?select=id&limit=1`, {
+      // Direct fetch to the exact endpoint that's failing
+      const response = await fetch(`${supabaseUrl}/rest/v1/game_sessions?select=*&is_lobby_game=eq.true&status=eq.scheduled&order=created_at.desc&limit=1`, {
         method: 'GET',
         headers: {
           'apikey': supabaseKey,
           'Authorization': `Bearer ${supabaseKey}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
         }
       })
 
       if (!response.ok) {
-        updateResult('5. Network Connectivity', {
+        const errorText = await response.text()
+        updateResult('1. Direct API Call', {
           status: 'error',
           message: `HTTP ${response.status}: ${response.statusText}`,
-          details: { status: response.status, statusText: response.statusText }
+          details: { status: response.status, statusText: response.statusText, errorBody: errorText }
         })
         return false
       }
 
       const data = await response.json()
-      updateResult('5. Network Connectivity', {
+      updateResult('1. Direct API Call', {
         status: 'success',
-        message: 'Direct API access working',
-        details: { responseData: data }
+        message: `Direct API call succeeded! Found ${Array.isArray(data) ? data.length : 'unknown'} results`,
+        details: data
       })
       return true
     } catch (error) {
-      updateResult('5. Network Connectivity', {
+      updateResult('1. Direct API Call', {
         status: 'error',
         message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         details: error
@@ -302,53 +85,217 @@ export const LobbySystemDiagnostic: React.FC = () => {
     }
   }
 
-  // Test 6: Authentication context
-  const testAuthenticationContext = async () => {
-    setCurrentStep('Testing authentication context...')
+  // Test 2: Supabase client configuration
+  const testSupabaseClientConfig = async () => {
+    setCurrentStep('Testing Supabase client configuration...')
     addResult({
-      test: '6. Authentication Context',
+      test: '2. Supabase Client Config',
       status: 'pending',
-      message: 'Testing anonymous authentication and permissions...'
+      message: 'Testing if Supabase client is properly configured...'
     })
 
     try {
-      // Check current session
-      const { data: session, error: sessionError } = await supabase.auth.getSession()
+      // Test basic client properties
+      const clientUrl = (supabase as any).supabaseUrl
+      const clientKey = (supabase as any).supabaseKey
       
-      if (sessionError) {
-        updateResult('6. Authentication Context', {
+      // Test simple query without auth context
+      const { data, error, status, statusText } = await supabase
+        .from('game_sessions')
+        .select('id')
+        .limit(1)
+
+      if (error) {
+        updateResult('2. Supabase Client Config', {
           status: 'error',
-          message: `Session check failed: ${sessionError.message}`,
-          details: sessionError
+          message: `Client query failed: ${error.message}`,
+          details: { error, status, statusText, clientUrl: clientUrl?.substring(0, 30) + '...', hasKey: !!clientKey }
         })
         return false
       }
 
-      // Check user
-      const { data: user, error: userError } = await supabase.auth.getUser()
-
-      if (userError) {
-        updateResult('6. Authentication Context', {
-          status: 'warning',
-          message: `User check failed (may be normal for anon): ${userError.message}`,
-          details: { sessionError, userError }
-        })
-      } else {
-        updateResult('6. Authentication Context', {
-          status: 'success',
-          message: `Auth context: ${session?.session ? 'authenticated' : 'anonymous'}`,
-          details: { 
-            hasSession: !!session?.session, 
-            hasUser: !!user?.user,
-            role: session?.session?.role || 'anon'
-          }
-        })
-      }
+      updateResult('2. Supabase Client Config', {
+        status: 'success',
+        message: 'Supabase client working correctly',
+        details: { dataLength: data?.length, clientConfigured: true }
+      })
       return true
     } catch (error) {
-      updateResult('6. Authentication Context', {
+      updateResult('2. Supabase Client Config', {
+        status: 'error',
+        message: `Client test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        details: error
+      })
+      return false
+    }
+  }
+
+  // Test 3: Exact failing query with detailed error capture
+  const testExactFailingQuery = async () => {
+    setCurrentStep('Testing exact failing query...')
+    addResult({
+      test: '3. Exact Failing Query',
+      status: 'pending',
+      message: 'Testing the exact query that fails in GameLobby with detailed error capture...'
+    })
+
+    try {
+      console.log('🔍 Testing exact lobby query that fails...')
+      
+      // This is the EXACT query from GameLobby.tsx line 37
+      const queryBuilder = supabase
+        .from('game_sessions')
+        .select('*')
+        .eq('is_lobby_game', true)
+        .eq('status', 'scheduled')
+        .order('created_at', { ascending: false })
+        .limit(1)
+
+      console.log('Query builder created, executing...')
+      
+      const { data: lobbyGame, error: gameError, status, statusText } = await queryBuilder.maybeSingle()
+
+      console.log('Query executed, results:', { lobbyGame, gameError, status, statusText })
+
+      if (gameError) {
+        updateResult('3. Exact Failing Query', {
+          status: 'error',
+          message: `Query failed: ${gameError.message}`,
+          details: { 
+            error: gameError, 
+            status, 
+            statusText,
+            errorCode: gameError.code,
+            errorDetails: gameError.details,
+            errorHint: gameError.hint
+          },
+          query: "supabase.from('game_sessions').select('*').eq('is_lobby_game', true).eq('status', 'scheduled').order('created_at', { ascending: false }).limit(1).maybeSingle()"
+        })
+        return false
+      }
+
+      updateResult('3. Exact Failing Query', {
+        status: 'success',
+        message: `Query succeeded! Found: ${lobbyGame ? 'lobby game' : 'no lobby game'}`,
+        details: { lobbyGame, status, statusText },
+        query: "supabase.from('game_sessions').select('*').eq('is_lobby_game', true).eq('status', 'scheduled').order('created_at', { ascending: false }).limit(1).maybeSingle()"
+      })
+      return true
+    } catch (error) {
+      console.error('Query failed with exception:', error)
+      updateResult('3. Exact Failing Query', {
+        status: 'error',
+        message: `Network/JS error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        details: { 
+          error, 
+          errorName: error instanceof Error ? error.name : 'Unknown',
+          errorStack: error instanceof Error ? error.stack : 'No stack trace'
+        }
+      })
+      return false
+    }
+  }
+
+  // Test 4: Authentication context without triggering errors
+  const testAuthenticationContext = async () => {
+    setCurrentStep('Testing authentication context...')
+    addResult({
+      test: '4. Authentication Context',
+      status: 'pending',
+      message: 'Testing authentication state without triggering session errors...'
+    })
+
+    try {
+      // Check if we can access auth without triggering session missing errors
+      const authClient = supabase.auth
+      
+      // Try to get session without throwing errors
+      let sessionResult = null
+      let sessionError = null
+      
+      try {
+        const { data: session, error } = await authClient.getSession()
+        sessionResult = session
+        sessionError = error
+      } catch (e) {
+        sessionError = e
+      }
+
+      // Try to get user without throwing errors
+      let userResult = null
+      let userError = null
+      
+      try {
+        const { data: user, error } = await authClient.getUser()
+        userResult = user
+        userError = error
+      } catch (e) {
+        userError = e
+      }
+
+      if (sessionError && sessionError.message?.includes('Auth session missing')) {
+        updateResult('4. Authentication Context', {
+          status: 'error',
+          message: `Auth session missing error detected: ${sessionError.message}`,
+          details: { sessionError, userError }
+        })
+        return false
+      }
+
+      updateResult('4. Authentication Context', {
+        status: sessionError ? 'warning' : 'success',
+        message: `Auth context accessible. Session: ${sessionResult?.session ? 'present' : 'none'}, User: ${userResult?.user ? 'present' : 'none'}`,
+        details: { 
+          hasSession: !!sessionResult?.session, 
+          hasUser: !!userResult?.user,
+          sessionError: sessionError?.message,
+          userError: userError?.message
+        }
+      })
+      return true
+    } catch (error) {
+      updateResult('4. Authentication Context', {
         status: 'error',
         message: `Auth test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        details: error
+      })
+      return false
+    }
+  }
+
+  // Test 5: Database function calls
+  const testDatabaseFunctions = async () => {
+    setCurrentStep('Testing database functions...')
+    addResult({
+      test: '5. Database Functions',
+      status: 'pending',
+      message: 'Testing if lobby management functions work...'
+    })
+
+    try {
+      // Test ensure_lobby_game_available function
+      const { data: ensureResult, error: ensureError } = await supabase
+        .rpc('ensure_lobby_game_available')
+
+      if (ensureError) {
+        updateResult('5. Database Functions', {
+          status: 'error',
+          message: `ensure_lobby_game_available failed: ${ensureError.message}`,
+          details: ensureError
+        })
+        return false
+      }
+
+      updateResult('5. Database Functions', {
+        status: 'success',
+        message: 'Database functions working correctly',
+        details: { ensureResult }
+      })
+      return true
+    } catch (error) {
+      updateResult('5. Database Functions', {
+        status: 'error',
+        message: `Function test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         details: error
       })
       return false
@@ -360,17 +307,12 @@ export const LobbySystemDiagnostic: React.FC = () => {
     setResults([])
     setCurrentStep('Starting investigation...')
 
-    // Run tests in priority order
-    const test1Success = await testExactFailingQuery()
-    if (!test1Success) {
-      // If the exact query fails, continue with other tests to understand why
-    }
-
-    await testRLSPolicies()
-    await testDatabaseFunctions()
-    await testDataIntegrity()
-    await testNetworkConnectivity()
+    // Run tests in priority order to isolate the auth issue
+    await testDirectAPICall()
+    await testSupabaseClientConfig()
+    await testExactFailingQuery()
     await testAuthenticationContext()
+    await testDatabaseFunctions()
 
     setCurrentStep('Investigation complete')
     setIsRunning(false)
@@ -418,7 +360,7 @@ export const LobbySystemDiagnostic: React.FC = () => {
           <h2 className="text-3xl font-bold text-gray-800">Lobby System Investigation</h2>
         </div>
         <p className="text-gray-600">
-          Systematic diagnosis of the lobby system network errors
+          Systematic diagnosis of the authentication session missing errors
         </p>
         {currentStep && (
           <p className="text-sm text-purple-600 font-medium">{currentStep}</p>
