@@ -5,13 +5,14 @@ import { MultiplayerBoard } from './components/MultiplayerBoard'
 import { GameFinale } from './components/GameFinale'
 import { GameIntroduction } from './components/GameIntroduction'
 import { GameLobby } from './components/GameLobby'
+import { SupabaseDiagnostic } from './components/SupabaseDiagnostic'
 import { Gem, ArrowLeft } from 'lucide-react'
 import { GameSettings, GridSize } from './types'
 
-type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game'
+type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game' | 'diagnostic'
 
 function App() {
-  const [appMode, setAppMode] = useState<AppMode>('introduction')
+  const [appMode, setAppMode] = useState<AppMode>('diagnostic') // Start with diagnostic
   const [settings, setSettings] = useState<GameSettings>({
     gridSize: 9 as GridSize,
     treasureCount: 5,
@@ -96,6 +97,33 @@ function App() {
           </div>
         )}
 
+        {/* Mode Navigation */}
+        <div className="flex gap-2 text-xs">
+          <button
+            onClick={() => setAppMode('diagnostic')}
+            className={`px-3 py-1 rounded ${appMode === 'diagnostic' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          >
+            Diagnostic
+          </button>
+          <button
+            onClick={() => setAppMode('introduction')}
+            className={`px-3 py-1 rounded ${appMode === 'introduction' ? 'bg-emerald-600 text-white' : 'bg-gray-200'}`}
+          >
+            Introduction
+          </button>
+          <button
+            onClick={() => setAppMode('lobby')}
+            className={`px-3 py-1 rounded ${appMode === 'lobby' ? 'bg-amber-600 text-white' : 'bg-gray-200'}`}
+          >
+            Lobby
+          </button>
+        </div>
+
+        {/* Diagnostic Mode */}
+        {appMode === 'diagnostic' && (
+          <SupabaseDiagnostic />
+        )}
+
         {/* Introduction Screen */}
         {appMode === 'introduction' && (
           <GameIntroduction 
@@ -177,7 +205,7 @@ function App() {
         )}
 
         {/* Fallback for Unknown State */}
-        {!['introduction', 'lobby', 'private-setup', 'game'].includes(appMode) && (
+        {!['introduction', 'lobby', 'private-setup', 'game', 'diagnostic'].includes(appMode) && (
           <div className="text-center">
             <p className="text-red-600">Unknown app state: {appMode}</p>
             <button
