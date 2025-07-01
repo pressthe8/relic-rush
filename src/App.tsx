@@ -5,14 +5,14 @@ import { MultiplayerBoard } from './components/MultiplayerBoard'
 import { GameFinale } from './components/GameFinale'
 import { GameIntroduction } from './components/GameIntroduction'
 import { GameLobby } from './components/GameLobby'
-import { SupabaseDiagnostic } from './components/SupabaseDiagnostic'
+import { SupabaseConnectionTest } from './components/SupabaseConnectionTest'
 import { Gem, ArrowLeft } from 'lucide-react'
 import { GameSettings, GridSize } from './types'
 
-type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game' | 'diagnostic'
+type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game' | 'connection-test'
 
 function App() {
-  const [appMode, setAppMode] = useState<AppMode>('introduction') // Back to normal flow
+  const [appMode, setAppMode] = useState<AppMode>('connection-test') // Start with connection test
   const [settings, setSettings] = useState<GameSettings>({
     gridSize: 9 as GridSize,
     treasureCount: 5,
@@ -100,10 +100,10 @@ function App() {
         {/* Mode Navigation */}
         <div className="flex gap-2 text-xs">
           <button
-            onClick={() => setAppMode('diagnostic')}
-            className={`px-3 py-1 rounded ${appMode === 'diagnostic' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+            onClick={() => setAppMode('connection-test')}
+            className={`px-3 py-1 rounded ${appMode === 'connection-test' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
           >
-            Diagnostic
+            Connection Test
           </button>
           <button
             onClick={() => setAppMode('introduction')}
@@ -119,9 +119,9 @@ function App() {
           </button>
         </div>
 
-        {/* Diagnostic Mode */}
-        {appMode === 'diagnostic' && (
-          <SupabaseDiagnostic />
+        {/* Connection Test Mode */}
+        {appMode === 'connection-test' && (
+          <SupabaseConnectionTest />
         )}
 
         {/* Introduction Screen */}
@@ -205,14 +205,14 @@ function App() {
         )}
 
         {/* Fallback for Unknown State */}
-        {!['introduction', 'lobby', 'private-setup', 'game', 'diagnostic'].includes(appMode) && (
+        {!['introduction', 'lobby', 'private-setup', 'game', 'connection-test'].includes(appMode) && (
           <div className="text-center">
             <p className="text-red-600">Unknown app state: {appMode}</p>
             <button
-              onClick={() => setAppMode('introduction')}
+              onClick={() => setAppMode('connection-test')}
               className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg"
             >
-              Return to Introduction
+              Return to Connection Test
             </button>
           </div>
         )}
