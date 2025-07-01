@@ -12,7 +12,6 @@ interface LobbyGame {
   status: 'scheduled'
   player_count: number
   joined_players: string[]
-  treasure_positions: any[] // Add this to match the interface
 }
 
 interface LobbyState {
@@ -46,11 +45,11 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
       console.log('🔍 Loading lobby game...')
       setLobbyState(prev => ({ ...prev, isLoading: true, error: null }))
 
-      // Get current scheduled lobby game - include treasure_positions
+      // Get current scheduled lobby game - REMOVED treasure_positions to fix RLS issue
       console.log('📡 Querying for scheduled lobby games...')
       const { data: lobbyGame, error: gameError } = await supabase
         .from('game_sessions')
-        .select('id, game_code, scheduled_start_time, max_players, status, treasure_positions')
+        .select('id, game_code, scheduled_start_time, max_players, status')
         .eq('is_lobby_game', true)
         .eq('status', 'scheduled')
         .order('created_at', { ascending: false })
@@ -113,8 +112,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         max_players: lobbyGame.max_players,
         status: lobbyGame.status,
         player_count: joinedPlayers.length,
-        joined_players: joinedPlayers,
-        treasure_positions: lobbyGame.treasure_positions || [] // Include treasure positions
+        joined_players: joinedPlayers
       }
 
       console.log('🎮 Final lobby state:', currentGame)
@@ -144,6 +142,19 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
     setLobbyState(prev => ({ ...prev, isJoining: true, error: null }))
 
     try {
+      // Get treasure positions from the full game session when joining
+      console.log('🎯 Getting treasure positions for board creation...')
+      const { data: gameSession, error: sessionError } = await supabase
+        .from('game_sessions')
+        .select('treasure_positions')
+        .eq('id', lobbyState.currentGame.id)
+        .single()
+
+      if (sessionError) {
+        console.error('❌ Failed to get game session:', sessionError)
+        throw sessionError
+      }
+
       // Create initial board state for 6x6 grid
       const initialBoard = Array(6).fill(null).map(() =>
         Array(6).fill(null).map(() => ({
@@ -154,7 +165,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
       )
 
       // Place treasures based on game session
-      const treasurePositions = lobbyState.currentGame.treasure_positions || []
+      const treasurePositions = gameSession.treasure_positions || []
       treasurePositions.forEach((pos: any) => {
         if (initialBoard[pos.row] && initialBoard[pos.row][pos.col]) {
           initialBoard[pos.row][pos.col].isTreasure = true

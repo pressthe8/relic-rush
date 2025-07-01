@@ -12,7 +12,7 @@ import { GameSettings, GridSize } from './types'
 type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game' | 'diagnostic'
 
 function App() {
-  const [appMode, setAppMode] = useState<AppMode>('diagnostic') // Start with diagnostic
+  const [appMode, setAppMode] = useState<AppMode>('introduction') // Back to normal flow
   const [settings, setSettings] = useState<GameSettings>({
     gridSize: 9 as GridSize,
     treasureCount: 5,

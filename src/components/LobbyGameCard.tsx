@@ -10,7 +10,6 @@ interface LobbyGame {
   status: 'scheduled'
   player_count: number
   joined_players: string[]
-  treasure_positions?: any[] // Make this optional since it might not be included in the query
 }
 
 interface LobbyGameCardProps {
