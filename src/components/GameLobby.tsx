@@ -44,27 +44,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
     try {
       setLobbyState(prev => ({ ...prev, isLoading: true, error: null }))
 
-      // Debug: Check Supabase configuration
-      console.log('🔍 Debug: Supabase URL:', import.meta.env.VITE_SUPABASE_URL)
-      console.log('🔍 Debug: Supabase Key exists:', !!import.meta.env.VITE_SUPABASE_ANON_KEY)
-      console.log('🔍 Debug: Supabase client:', supabase)
-
-      // Test basic connection first
-      console.log('🔍 Testing basic Supabase connection...')
-      const { data: testData, error: testError } = await supabase
-        .from('game_sessions')
-        .select('count')
-        .limit(1)
-
-      if (testError) {
-        console.error('❌ Basic connection test failed:', testError)
-        throw new Error(`Connection test failed: ${testError.message}`)
-      }
-
-      console.log('✅ Basic connection successful')
-
       // Get current scheduled lobby game
-      console.log('🔍 Fetching scheduled lobby games...')
       const { data: lobbyGame, error: gameError } = await supabase
         .from('game_sessions')
         .select('*')
@@ -74,43 +54,26 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         .limit(1)
         .maybeSingle()
 
-      if (gameError) {
-        console.error('❌ Error fetching lobby game:', gameError)
-        throw gameError
-      }
-
-      console.log('🔍 Lobby game query result:', lobbyGame)
+      if (gameError) throw gameError
 
       if (!lobbyGame) {
         // No lobby game exists, trigger creation
-        console.log('🔍 No lobby game found, calling ensure_lobby_game_available...')
-        const { data: createResult, error: createError } = await supabase.rpc('ensure_lobby_game_available')
-        
-        console.log('🔍 Create function result:', createResult)
-        if (createError) {
-          console.error('❌ Error creating lobby game:', createError)
-          throw createError
-        }
+        console.log('No lobby game found, creating one...')
+        const { error: createError } = await supabase.rpc('ensure_lobby_game_available')
+        if (createError) throw createError
         
         // Retry loading after creation
-        console.log('🔍 Retrying load after creation...')
         setTimeout(loadLobbyGame, 1000)
         return
       }
 
       // Get players in this game
-      console.log('🔍 Fetching players for game:', lobbyGame.id)
       const { data: players, error: playersError } = await supabase
         .from('player_boards')
         .select('mock_player_id')
         .eq('session_id', lobbyGame.id)
 
-      if (playersError) {
-        console.error('❌ Error fetching players:', playersError)
-        throw playersError
-      }
-
-      console.log('🔍 Players in game:', players)
+      if (playersError) throw playersError
 
       const joinedPlayers = players?.map(p => p.mock_player_id) || []
       const hasJoined = joinedPlayers.includes(lobbyState.playerMockId)
@@ -125,8 +88,6 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         joined_players: joinedPlayers
       }
 
-      console.log('✅ Successfully loaded lobby game:', currentGame)
-
       setLobbyState(prev => ({
         ...prev,
         currentGame,
@@ -135,7 +96,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
       }))
 
     } catch (error) {
-      console.error('❌ Failed to load lobby game:', error)
+      console.error('Failed to load lobby game:', error)
       setLobbyState(prev => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Failed to load lobby game',
@@ -307,17 +268,6 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
           </div>
         </div>
       )}
-
-      {/* Debug Info */}
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h3 className="font-semibold text-blue-800 mb-2">🔍 Debug Information</h3>
-        <div className="text-sm text-blue-700 space-y-1">
-          <p>Supabase URL: {import.meta.env.VITE_SUPABASE_URL || 'Not set'}</p>
-          <p>Supabase Key: {import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Set' : 'Not set'}</p>
-          <p>Current Game: {lobbyState.currentGame ? 'Loaded' : 'None'}</p>
-          <p>Player Mock ID: {lobbyState.playerMockId}</p>
-        </div>
-      </div>
 
       {/* Current Game Status */}
       {lobbyState.currentGame && (
