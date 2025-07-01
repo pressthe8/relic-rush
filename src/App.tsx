@@ -5,11 +5,10 @@ import { MultiplayerBoard } from './components/MultiplayerBoard'
 import { GameFinale } from './components/GameFinale'
 import { GameIntroduction } from './components/GameIntroduction'
 import { GameLobby } from './components/GameLobby'
-import { SupabaseConnectionTest } from './components/SupabaseConnectionTest'
-import { Gem, ArrowLeft, Settings } from 'lucide-react'
+import { Gem, ArrowLeft } from 'lucide-react'
 import { GameSettings, GridSize } from './types'
 
-type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game' | 'debug'
+type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game'
 
 function App() {
   const [appMode, setAppMode] = useState<AppMode>('introduction')
@@ -50,10 +49,6 @@ function App() {
 
   const handleEnterPrivateSetup = () => {
     setAppMode('private-setup')
-  }
-
-  const handleEnterDebug = () => {
-    setAppMode('debug')
   }
 
   const handleGameStart = (sessionId: string) => {
@@ -101,39 +96,12 @@ function App() {
           </div>
         )}
 
-        {/* Debug Mode Indicator */}
-        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded flex items-center gap-2">
-          Mode: {appMode} | Private Games: {ENABLE_PRIVATE_GAMES ? 'Enabled' : 'Disabled'}
-          <button
-            onClick={handleEnterDebug}
-            className="ml-2 p-1 hover:bg-gray-200 rounded"
-            title="Debug Connection"
-          >
-            <Settings className="w-3 h-3" />
-          </button>
-        </div>
-
         {/* Introduction Screen */}
         {appMode === 'introduction' && (
           <GameIntroduction 
             onEnterLobby={handleEnterLobby}
             onEnterPrivateSetup={ENABLE_PRIVATE_GAMES ? handleEnterPrivateSetup : undefined}
           />
-        )}
-
-        {/* Debug Connection Test */}
-        {appMode === 'debug' && (
-          <>
-            <button
-              onClick={handleBackToIntroduction}
-              className="self-start flex items-center gap-2 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Introduction
-            </button>
-
-            <SupabaseConnectionTest />
-          </>
         )}
 
         {/* Game Lobby */}
@@ -209,7 +177,7 @@ function App() {
         )}
 
         {/* Fallback for Unknown State */}
-        {!['introduction', 'lobby', 'private-setup', 'game', 'debug'].includes(appMode) && (
+        {!['introduction', 'lobby', 'private-setup', 'game'].includes(appMode) && (
           <div className="text-center">
             <p className="text-red-600">Unknown app state: {appMode}</p>
             <button
