@@ -42,9 +42,11 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
   // Load current lobby game
   const loadLobbyGame = useCallback(async () => {
     try {
+      console.log('🔍 Loading lobby game...')
       setLobbyState(prev => ({ ...prev, isLoading: true, error: null }))
 
       // Get current scheduled lobby game
+      console.log('📡 Querying for scheduled lobby games...')
       const { data: lobbyGame, error: gameError } = await supabase
         .from('game_sessions')
         .select('*')
@@ -54,29 +56,54 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         .limit(1)
         .maybeSingle()
 
-      if (gameError) throw gameError
+      console.log('📊 Query result:', { lobbyGame, gameError })
+
+      if (gameError) {
+        console.error('❌ Database error:', gameError)
+        throw gameError
+      }
 
       if (!lobbyGame) {
+        console.log('🚫 No lobby game found, creating one...')
         // No lobby game exists, trigger creation
-        console.log('No lobby game found, creating one...')
-        const { error: createError } = await supabase.rpc('ensure_lobby_game_available')
-        if (createError) throw createError
+        const { data: createResult, error: createError } = await supabase.rpc('ensure_lobby_game_available')
+        console.log('🎮 Create result:', { createResult, createError })
+        
+        if (createError) {
+          console.error('❌ Failed to create lobby game:', createError)
+          throw createError
+        }
         
         // Retry loading after creation
-        setTimeout(loadLobbyGame, 1000)
+        console.log('🔄 Retrying load after creation...')
+        setTimeout(loadLobbyGame, 2000)
         return
       }
 
+      console.log('✅ Found lobby game:', lobbyGame)
+
       // Get players in this game
+      console.log('👥 Loading players for session:', lobbyGame.id)
       const { data: players, error: playersError } = await supabase
         .from('player_boards')
         .select('mock_player_id')
         .eq('session_id', lobbyGame.id)
 
-      if (playersError) throw playersError
+      console.log('👥 Players result:', { players, playersError })
+
+      if (playersError) {
+        console.error('❌ Players query error:', playersError)
+        throw playersError
+      }
 
       const joinedPlayers = players?.map(p => p.mock_player_id) || []
       const hasJoined = joinedPlayers.includes(lobbyState.playerMockId)
+
+      console.log('🎯 Player status:', {
+        playerMockId: lobbyState.playerMockId,
+        joinedPlayers,
+        hasJoined
+      })
 
       const currentGame: LobbyGame = {
         id: lobbyGame.id,
@@ -88,6 +115,8 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         joined_players: joinedPlayers
       }
 
+      console.log('🎮 Final lobby state:', currentGame)
+
       setLobbyState(prev => ({
         ...prev,
         currentGame,
@@ -96,7 +125,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
       }))
 
     } catch (error) {
-      console.error('Failed to load lobby game:', error)
+      console.error('💥 Failed to load lobby game:', error)
       setLobbyState(prev => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Failed to load lobby game',
@@ -109,6 +138,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
   const handleJoinGame = async () => {
     if (!lobbyState.currentGame) return
 
+    console.log('🚀 Joining game:', lobbyState.currentGame.id)
     setLobbyState(prev => ({ ...prev, isJoining: true, error: null }))
 
     try {
@@ -129,6 +159,8 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         }
       })
 
+      console.log('🎯 Creating player board with initial state')
+
       // Add player to game
       const { error } = await supabase
         .from('player_boards')
@@ -143,7 +175,12 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
           sub_grid_hints: {}
         })
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Failed to join game:', error)
+        throw error
+      }
+
+      console.log('✅ Successfully joined game')
 
       setLobbyState(prev => ({
         ...prev,
@@ -155,7 +192,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
       setTimeout(loadLobbyGame, 500)
 
     } catch (error) {
-      console.error('Failed to join game:', error)
+      console.error('💥 Failed to join game:', error)
       setLobbyState(prev => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Failed to join game',
@@ -168,6 +205,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
   const handleLeaveGame = async () => {
     if (!lobbyState.currentGame) return
 
+    console.log('👋 Leaving game:', lobbyState.currentGame.id)
     setLobbyState(prev => ({ ...prev, isLeaving: true, error: null }))
 
     try {
@@ -176,7 +214,12 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         p_mock_player_id: lobbyState.playerMockId
       })
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Failed to leave game:', error)
+        throw error
+      }
+
+      console.log('✅ Successfully left game')
 
       setLobbyState(prev => ({
         ...prev,
@@ -188,7 +231,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
       setTimeout(loadLobbyGame, 500)
 
     } catch (error) {
-      console.error('Failed to leave game:', error)
+      console.error('💥 Failed to leave game:', error)
       setLobbyState(prev => ({
         ...prev,
         error: error instanceof Error ? error.message : 'Failed to leave game',
@@ -212,26 +255,32 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
 
       if (gameStatus.status === 'active' && lobbyState.hasJoined) {
         // Game has started and we're in it - redirect to game
+        console.log('🎮 Game started! Redirecting...')
         onGameStart(lobbyState.currentGame.id)
       } else if (gameStatus.status === 'cancelled') {
         // Game was cancelled - reload lobby
+        console.log('❌ Game was cancelled, reloading lobby...')
         loadLobbyGame()
       }
     } catch (error) {
-      console.error('Failed to check game status:', error)
+      console.error('💥 Failed to check game status:', error)
     }
   }, [lobbyState.currentGame, lobbyState.hasJoined, onGameStart, loadLobbyGame])
 
   // Set up polling for game updates
   useEffect(() => {
+    console.log('🔄 Setting up lobby polling...')
     loadLobbyGame()
 
     const interval = setInterval(() => {
       loadLobbyGame()
       checkGameStatus()
-    }, 2000) // Poll every 2 seconds
+    }, 3000) // Poll every 3 seconds
 
-    return () => clearInterval(interval)
+    return () => {
+      console.log('🛑 Cleaning up lobby polling...')
+      clearInterval(interval)
+    }
   }, [loadLobbyGame, checkGameStatus])
 
   if (lobbyState.isLoading) {
@@ -268,6 +317,13 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
           </div>
         </div>
       )}
+
+      {/* Debug Info */}
+      <div className="p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
+        <strong>Debug:</strong> Player ID: {lobbyState.playerMockId} | 
+        Has Game: {lobbyState.currentGame ? 'Yes' : 'No'} | 
+        Has Joined: {lobbyState.hasJoined ? 'Yes' : 'No'}
+      </div>
 
       {/* Current Game Status */}
       {lobbyState.currentGame && (
