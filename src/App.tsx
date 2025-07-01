@@ -4,7 +4,7 @@ import { MultiplayerSetup } from './components/MultiplayerSetup'
 import { MultiplayerBoard } from './components/MultiplayerBoard'
 import { GameFinale } from './components/GameFinale'
 import { GameIntroduction } from './components/GameIntroduction'
-import { GameLobby } from './components/GameLobby'
+import { SocketGameLobby } from './components/SocketGameLobby'
 import { SupabaseConnectionTest } from './components/SupabaseConnectionTest'
 import { LobbySystemDiagnostic } from './components/LobbySystemDiagnostic'
 import { Gem, ArrowLeft } from 'lucide-react'
@@ -104,7 +104,7 @@ function App() {
             onClick={() => setAppMode('lobby')}
             className={`px-3 py-1 rounded ${appMode === 'lobby' ? 'bg-emerald-600 text-white' : 'bg-gray-200'}`}
           >
-            🎮 Lobby
+            🎮 Socket Lobby
           </button>
           <button
             onClick={() => setAppMode('introduction')}
@@ -152,7 +152,7 @@ function App() {
           />
         )}
 
-        {/* Game Lobby */}
+        {/* Socket.IO Game Lobby */}
         {appMode === 'lobby' && (
           <>
             <button
@@ -163,7 +163,7 @@ function App() {
               Back to Introduction
             </button>
 
-            <GameLobby onGameStart={handleGameStart} />
+            <SocketGameLobby onGameStart={handleGameStart} />
           </>
         )}
 
