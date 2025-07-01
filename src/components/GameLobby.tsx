@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { supabase, generateMockPlayerId } from '../lib/supabase'
 import { LobbyGameCard } from './LobbyGameCard'
 import { JoinedGameStatus } from './JoinedGameStatus'
-import { Users, RefreshCw, AlertCircle } from 'lucide-react'
+import { Users, RefreshCw, AlertCircle, Wifi, WifiOff } from 'lucide-react'
 
 interface LobbyGame {
   id: string
@@ -22,6 +22,7 @@ interface LobbyState {
   isLoading: boolean
   error: string | null
   playerMockId: string
+  connectionStatus: 'connected' | 'disconnected' | 'testing'
 }
 
 interface GameLobbyProps {
@@ -36,32 +37,79 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
     isLeaving: false,
     isLoading: true,
     error: null,
-    playerMockId: generateMockPlayerId()
+    playerMockId: generateMockPlayerId(),
+    connectionStatus: 'testing'
   })
 
-  // Load current lobby game
+  // Test network connectivity to Supabase
+  const testConnection = useCallback(async (): Promise<boolean> => {
+    try {
+      console.log('🔍 Testing Supabase connectivity...')
+      setLobbyState(prev => ({ ...prev, connectionStatus: 'testing' }))
+
+      // Try a simple query with timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000) // 5 second timeout
+
+      const { error } = await supabase
+        .from('game_sessions')
+        .select('id')
+        .limit(1)
+        .abortSignal(controller.signal)
+
+      clearTimeout(timeoutId)
+
+      if (error) {
+        console.error('❌ Connection test failed:', error)
+        setLobbyState(prev => ({ ...prev, connectionStatus: 'disconnected' }))
+        return false
+      }
+
+      console.log('✅ Connection test successful')
+      setLobbyState(prev => ({ ...prev, connectionStatus: 'connected' }))
+      return true
+    } catch (error) {
+      console.error('❌ Connection test error:', error)
+      setLobbyState(prev => ({ ...prev, connectionStatus: 'disconnected' }))
+      return false
+    }
+  }, [])
+
+  // Create a mock lobby game for offline mode
+  const createMockLobbyGame = useCallback((): LobbyGame => {
+    const mockGame: LobbyGame = {
+      id: 'mock-lobby-game',
+      game_code: 'DEMO01',
+      scheduled_start_time: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes from now
+      max_players: 6,
+      status: 'scheduled',
+      player_count: 0,
+      joined_players: []
+    }
+    console.log('🎮 Created mock lobby game for offline mode:', mockGame)
+    return mockGame
+  }, [])
+
+  // Load current lobby game with fallback
   const loadLobbyGame = useCallback(async () => {
     try {
       setLobbyState(prev => ({ ...prev, isLoading: true, error: null }))
 
-      // Debug: Check Supabase configuration
-      console.log('🔍 Debug: Supabase URL:', import.meta.env.VITE_SUPABASE_URL)
-      console.log('🔍 Debug: Supabase Key exists:', !!import.meta.env.VITE_SUPABASE_ANON_KEY)
-      console.log('🔍 Debug: Supabase client:', supabase)
-
-      // Test basic connection first
-      console.log('🔍 Testing basic Supabase connection...')
-      const { data: testData, error: testError } = await supabase
-        .from('game_sessions')
-        .select('count')
-        .limit(1)
-
-      if (testError) {
-        console.error('❌ Basic connection test failed:', testError)
-        throw new Error(`Connection test failed: ${testError.message}`)
+      // Test connection first
+      const isConnected = await testConnection()
+      
+      if (!isConnected) {
+        console.log('🔄 No connection to Supabase, using mock lobby game')
+        const mockGame = createMockLobbyGame()
+        setLobbyState(prev => ({
+          ...prev,
+          currentGame: mockGame,
+          hasJoined: false,
+          isLoading: false,
+          error: 'Running in offline mode - Supabase connection unavailable'
+        }))
+        return
       }
-
-      console.log('✅ Basic connection successful')
 
       // Get current scheduled lobby game
       console.log('🔍 Fetching scheduled lobby games...')
@@ -136,13 +184,20 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
 
     } catch (error) {
       console.error('❌ Failed to load lobby game:', error)
+      
+      // Fallback to mock game on any error
+      console.log('🔄 Falling back to mock lobby game due to error')
+      const mockGame = createMockLobbyGame()
+      
       setLobbyState(prev => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Failed to load lobby game',
-        isLoading: false
+        currentGame: mockGame,
+        hasJoined: false,
+        isLoading: false,
+        error: `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}. Running in demo mode.`
       }))
     }
-  }, [lobbyState.playerMockId])
+  }, [lobbyState.playerMockId, testConnection, createMockLobbyGame])
 
   // Join current lobby game
   const handleJoinGame = async () => {
@@ -151,6 +206,24 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
     setLobbyState(prev => ({ ...prev, isJoining: true, error: null }))
 
     try {
+      // Check if we're in offline mode
+      if (lobbyState.connectionStatus === 'disconnected' || lobbyState.currentGame.id === 'mock-lobby-game') {
+        console.log('🎮 Joining mock lobby game (offline mode)')
+        
+        // Simulate joining in offline mode
+        setLobbyState(prev => ({
+          ...prev,
+          hasJoined: true,
+          isJoining: false,
+          currentGame: prev.currentGame ? {
+            ...prev.currentGame,
+            player_count: prev.currentGame.player_count + 1,
+            joined_players: [...prev.currentGame.joined_players, prev.playerMockId]
+          } : null
+        }))
+        return
+      }
+
       // Create initial board state for 6x6 grid
       const initialBoard = Array(6).fill(null).map(() =>
         Array(6).fill(null).map(() => ({
@@ -210,6 +283,24 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
     setLobbyState(prev => ({ ...prev, isLeaving: true, error: null }))
 
     try {
+      // Check if we're in offline mode
+      if (lobbyState.connectionStatus === 'disconnected' || lobbyState.currentGame.id === 'mock-lobby-game') {
+        console.log('🎮 Leaving mock lobby game (offline mode)')
+        
+        // Simulate leaving in offline mode
+        setLobbyState(prev => ({
+          ...prev,
+          hasJoined: false,
+          isLeaving: false,
+          currentGame: prev.currentGame ? {
+            ...prev.currentGame,
+            player_count: Math.max(0, prev.currentGame.player_count - 1),
+            joined_players: prev.currentGame.joined_players.filter(id => id !== prev.playerMockId)
+          } : null
+        }))
+        return
+      }
+
       const { error } = await supabase.rpc('leave_lobby_game', {
         p_session_id: lobbyState.currentGame.id,
         p_mock_player_id: lobbyState.playerMockId
@@ -238,7 +329,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
 
   // Check for game status changes and redirect when game starts
   const checkGameStatus = useCallback(async () => {
-    if (!lobbyState.currentGame) return
+    if (!lobbyState.currentGame || lobbyState.connectionStatus === 'disconnected') return
 
     try {
       const { data: gameStatus, error } = await supabase
@@ -259,19 +350,21 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
     } catch (error) {
       console.error('Failed to check game status:', error)
     }
-  }, [lobbyState.currentGame, lobbyState.hasJoined, onGameStart, loadLobbyGame])
+  }, [lobbyState.currentGame, lobbyState.hasJoined, lobbyState.connectionStatus, onGameStart, loadLobbyGame])
 
   // Set up polling for game updates
   useEffect(() => {
     loadLobbyGame()
 
     const interval = setInterval(() => {
-      loadLobbyGame()
-      checkGameStatus()
-    }, 2000) // Poll every 2 seconds
+      if (lobbyState.connectionStatus === 'connected') {
+        loadLobbyGame()
+        checkGameStatus()
+      }
+    }, 2000) // Poll every 2 seconds only when connected
 
     return () => clearInterval(interval)
-  }, [loadLobbyGame, checkGameStatus])
+  }, [loadLobbyGame, checkGameStatus, lobbyState.connectionStatus])
 
   if (lobbyState.isLoading) {
     return (
@@ -292,11 +385,36 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         <div className="flex items-center justify-center gap-3">
           <Users className="w-8 h-8 text-emerald-600" />
           <h2 className="text-3xl font-bold text-gray-800">Game Lobby</h2>
+          {lobbyState.connectionStatus === 'connected' && <Wifi className="w-6 h-6 text-green-600" />}
+          {lobbyState.connectionStatus === 'disconnected' && <WifiOff className="w-6 h-6 text-red-600" />}
+          {lobbyState.connectionStatus === 'testing' && <RefreshCw className="w-6 h-6 text-blue-600 animate-spin" />}
         </div>
         <p className="text-gray-600">
-          Join the next scheduled game or wait for more players to join
+          {lobbyState.connectionStatus === 'connected' 
+            ? 'Join the next scheduled game or wait for more players to join'
+            : 'Running in demo mode - try the lobby system offline'
+          }
         </p>
       </div>
+
+      {/* Connection Status */}
+      {lobbyState.connectionStatus === 'disconnected' && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <WifiOff className="w-5 h-5 text-amber-600" />
+            <h3 className="font-semibold text-amber-800">Demo Mode</h3>
+          </div>
+          <p className="text-amber-700 text-sm">
+            Unable to connect to Supabase. You can still explore the lobby interface in demo mode.
+          </p>
+          <button
+            onClick={testConnection}
+            className="mt-2 px-3 py-1 bg-amber-600 text-white text-sm rounded hover:bg-amber-700 transition-colors"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
 
       {/* Error Display */}
       {lobbyState.error && (
@@ -307,17 +425,6 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
           </div>
         </div>
       )}
-
-      {/* Debug Info */}
-      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <h3 className="font-semibold text-blue-800 mb-2">🔍 Debug Information</h3>
-        <div className="text-sm text-blue-700 space-y-1">
-          <p>Supabase URL: {import.meta.env.VITE_SUPABASE_URL || 'Not set'}</p>
-          <p>Supabase Key: {import.meta.env.VITE_SUPABASE_ANON_KEY ? 'Set' : 'Not set'}</p>
-          <p>Current Game: {lobbyState.currentGame ? 'Loaded' : 'None'}</p>
-          <p>Player Mock ID: {lobbyState.playerMockId}</p>
-        </div>
-      </div>
 
       {/* Current Game Status */}
       {lobbyState.currentGame && (
@@ -359,6 +466,9 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
           <li>• All lobby games use 6x6 grid with 5 treasures and 10 dig attempts</li>
           <li>• You can leave before the game starts if you change your mind</li>
           <li>• New games are created automatically when current ones start</li>
+          {lobbyState.connectionStatus === 'disconnected' && (
+            <li className="text-amber-700">• Currently in demo mode - full functionality requires Supabase connection</li>
+          )}
         </ul>
       </div>
     </div>
