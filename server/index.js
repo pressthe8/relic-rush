@@ -9,11 +9,15 @@ dotenv.config();
 
 const app = express();
 const server = createServer(app);
+
+// Configure Socket.IO with proper CORS settings
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", // Vite dev server
-    methods: ["GET", "POST"]
-  }
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173"], // Allow both localhost and 127.0.0.1
+    methods: ["GET", "POST"],
+    credentials: true
+  },
+  allowEIO3: true // Allow Engine.IO v3 clients
 });
 
 // Initialize Supabase client
@@ -214,6 +218,19 @@ const setupGameTimer = () => {
   }
 };
 
+// Add basic Express middleware for health checks
+app.use(express.json());
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(),
+    lobbyPlayers: lobbyState.players.size,
+    currentGame: lobbyState.currentGame?.game_code || 'none'
+  });
+});
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('🔌 User connected:', socket.id);
@@ -374,6 +391,7 @@ const PORT = process.env.PORT || 3001;
 
 server.listen(PORT, () => {
   console.log(`🚀 Socket.IO server running on port ${PORT}`);
+  console.log(`🌐 CORS enabled for: http://localhost:5173, http://127.0.0.1:5173`);
   initializeLobby();
 });
 
@@ -384,4 +402,13 @@ process.on('SIGTERM', () => {
     clearTimeout(lobbyState.gameTimer);
   }
   server.close();
+});
+
+process.on('SIGINT', () => {
+  console.log('🛑 Shutting down server...');
+  if (lobbyState.gameTimer) {
+    clearTimeout(lobbyState.gameTimer);
+  }
+  server.close();
+  process.exit(0);
 });
