@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { supabase, generateMockPlayerId } from '../lib/supabase'
 import { LobbyGameCard } from './LobbyGameCard'
 import { JoinedGameStatus } from './JoinedGameStatus'
-import { Users, RefreshCw, AlertCircle, Database, Bug } from 'lucide-react'
+import { Users, RefreshCw, AlertCircle, Database, Bug, Clock } from 'lucide-react'
 
 interface LobbyGame {
   id: string
@@ -24,6 +24,7 @@ interface LobbyState {
   error: string | null
   playerMockId: string
   debugInfo: any[]
+  lastGameId: string | null // Track if game changed
 }
 
 interface GameLobbyProps {
@@ -39,7 +40,8 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
     isLoading: true,
     error: null,
     playerMockId: generateMockPlayerId(),
-    debugInfo: []
+    debugInfo: [],
+    lastGameId: null
   })
 
   const addDebugInfo = (info: string, data?: any) => {
@@ -56,21 +58,19 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
       addDebugInfo('Starting loadLobbyGame...')
       setLobbyState(prev => ({ ...prev, isLoading: true, error: null }))
 
-      // Step 1: Test basic connection first
-      addDebugInfo('Testing basic Supabase connection...')
-      const { data: connectionTest, error: connectionError } = await supabase
-        .from('game_sessions')
-        .select('id')
-        .limit(1)
+      // Step 1: Ensure lobby game is available (this will process scheduled games)
+      addDebugInfo('Ensuring lobby game availability...')
+      const { data: availabilityResult, error: availabilityError } = await supabase
+        .rpc('ensure_lobby_game_available')
 
-      if (connectionError) {
-        addDebugInfo('Connection test failed', connectionError)
-        throw new Error(`Database connection failed: ${connectionError.message}`)
+      if (availabilityError) {
+        addDebugInfo('Availability check failed', availabilityError)
+        throw new Error(`Failed to ensure lobby availability: ${availabilityError.message}`)
       }
 
-      addDebugInfo('Connection test passed', { count: connectionTest?.length })
+      addDebugInfo('Availability check result', availabilityResult)
 
-      // Step 2: Try to get current scheduled lobby game
+      // Step 2: Get current scheduled lobby game
       addDebugInfo('Querying for scheduled lobby games...')
       const { data: lobbyGame, error: gameError } = await supabase
         .from('game_sessions')
@@ -88,30 +88,20 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
 
       addDebugInfo('Lobby game query result', { found: !!lobbyGame, game: lobbyGame })
 
-      // Step 3: If no lobby game exists, try to create one
       if (!lobbyGame) {
-        addDebugInfo('No lobby game found, attempting to create one...')
-        
-        try {
-          const { data: createResult, error: createError } = await supabase.rpc('ensure_lobby_game_available')
-          
-          if (createError) {
-            addDebugInfo('Failed to create lobby game', createError)
-            throw new Error(`Failed to create lobby game: ${createError.message}`)
-          }
-          
-          addDebugInfo('Lobby game creation result', createResult)
-          
-          // Retry loading after creation with a delay
-          setTimeout(() => {
-            addDebugInfo('Retrying load after game creation...')
-            loadLobbyGame()
-          }, 2000)
-          return
-        } catch (createErr) {
-          addDebugInfo('Exception during game creation', createErr)
-          throw new Error(`Could not create lobby game: ${createErr instanceof Error ? createErr.message : 'Unknown error'}`)
-        }
+        addDebugInfo('No lobby game found after availability check - this is unexpected')
+        throw new Error('No lobby game available after ensuring availability')
+      }
+
+      // Step 3: Check if this is a different game than before
+      const gameChanged = lobbyState.lastGameId && lobbyState.lastGameId !== lobbyGame.id
+      if (gameChanged) {
+        addDebugInfo('Game changed detected', { 
+          oldGameId: lobbyState.lastGameId, 
+          newGameId: lobbyGame.id 
+        })
+        // Reset join status if game changed
+        setLobbyState(prev => ({ ...prev, hasJoined: false }))
       }
 
       // Step 4: Get players in this game
@@ -142,14 +132,15 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         treasure_positions: lobbyGame.treasure_positions
       }
 
-      addDebugInfo('Successfully loaded lobby game', { currentGame, hasJoined })
+      addDebugInfo('Successfully loaded lobby game', { currentGame, hasJoined, gameChanged })
 
       setLobbyState(prev => ({
         ...prev,
         currentGame,
-        hasJoined,
+        hasJoined: gameChanged ? false : hasJoined, // Reset if game changed
         isLoading: false,
-        error: null
+        error: null,
+        lastGameId: lobbyGame.id
       }))
 
     } catch (error) {
@@ -163,7 +154,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         isLoading: false
       }))
     }
-  }, [lobbyState.playerMockId])
+  }, [lobbyState.playerMockId, lobbyState.lastGameId])
 
   // Join current lobby game
   const handleJoinGame = async () => {
@@ -300,6 +291,8 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         onGameStart(lobbyState.currentGame.id)
       } else if (gameStatus.status === 'cancelled') {
         addDebugInfo('Game was cancelled, reloading lobby...')
+        // Reset join status and reload
+        setLobbyState(prev => ({ ...prev, hasJoined: false, lastGameId: null }))
         loadLobbyGame()
       }
     } catch (error) {
@@ -321,7 +314,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         loadLobbyGame()
         checkGameStatus()
       }
-    }, 3000) // Poll every 3 seconds (less aggressive)
+    }, 3000) // Poll every 3 seconds
 
     return () => {
       addDebugInfo('Cleaning up polling interval')
@@ -406,6 +399,18 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         </div>
       )}
 
+      {/* Game Changed Notice */}
+      {lobbyState.lastGameId && lobbyState.currentGame && lobbyState.lastGameId !== lobbyState.currentGame.id && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-amber-600" />
+            <p className="text-amber-800 text-sm">
+              <strong>New game available!</strong> The previous game was processed and a fresh lobby game has been created.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Current Game Status */}
       {lobbyState.currentGame && (
         <>
@@ -465,10 +470,10 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         <h3 className="font-semibold text-blue-800 mb-2">How Lobby Games Work</h3>
         <ul className="text-sm text-blue-700 space-y-1">
           <li>• Games start automatically when 6 players join OR after 10 minutes</li>
-          <li>• Minimum 2 players required, otherwise game is cancelled</li>
+          <li>• Minimum 2 players required, otherwise game is cancelled and new one created</li>
           <li>• All lobby games use 6x6 grid with 5 treasures and 10 dig attempts</li>
           <li>• You can leave before the game starts if you change your mind</li>
-          <li>• New games are created automatically when current ones start</li>
+          <li>• New games are created automatically when current ones start or are cancelled</li>
         </ul>
       </div>
     </div>
