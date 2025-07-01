@@ -45,7 +45,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
       console.log('🔍 Loading lobby game...')
       setLobbyState(prev => ({ ...prev, isLoading: true, error: null }))
 
-      // Get current scheduled lobby game - REMOVED treasure_positions to fix RLS issue
+      // Get current scheduled lobby game
       console.log('📡 Querying for scheduled lobby games...')
       const { data: lobbyGame, error: gameError } = await supabase
         .from('game_sessions')
@@ -74,15 +74,24 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
           throw createError
         }
         
-        // Retry loading after creation
+        // Set loading state and retry after creation
+        setLobbyState(prev => ({
+          ...prev,
+          currentGame: null,
+          hasJoined: false,
+          isLoading: true,
+          error: null
+        }))
+        
+        // Retry loading after creation with longer delay
         console.log('🔄 Retrying load after creation...')
-        setTimeout(loadLobbyGame, 2000)
+        setTimeout(loadLobbyGame, 3000)
         return
       }
 
       console.log('✅ Found lobby game:', lobbyGame)
 
-      // Get players in this game
+      // ONLY query players if we have a valid game
       console.log('👥 Loading players for session:', lobbyGame.id)
       const { data: players, error: playersError } = await supabase
         .from('player_boards')
@@ -286,15 +295,21 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
     loadLobbyGame()
 
     const interval = setInterval(() => {
-      loadLobbyGame()
-      checkGameStatus()
-    }, 3000) // Poll every 3 seconds
+      // Only poll if we have a current game
+      if (lobbyState.currentGame) {
+        loadLobbyGame()
+        checkGameStatus()
+      } else {
+        // If no game, just try to load one
+        loadLobbyGame()
+      }
+    }, 5000) // Poll every 5 seconds (less aggressive)
 
     return () => {
       console.log('🛑 Cleaning up lobby polling...')
       clearInterval(interval)
     }
-  }, [loadLobbyGame, checkGameStatus])
+  }, [loadLobbyGame, checkGameStatus, lobbyState.currentGame])
 
   if (lobbyState.isLoading) {
     return (
@@ -302,7 +317,9 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         <div className="text-center">
           <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Loading Game Lobby...</h2>
-          <p className="text-gray-600">Finding available games for you to join</p>
+          <p className="text-gray-600">
+            {lobbyState.currentGame ? 'Updating game status...' : 'Finding or creating available games...'}
+          </p>
         </div>
       </div>
     )
@@ -335,11 +352,12 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
       <div className="p-3 bg-gray-50 rounded-lg text-xs text-gray-600">
         <strong>Debug:</strong> Player ID: {lobbyState.playerMockId} | 
         Has Game: {lobbyState.currentGame ? 'Yes' : 'No'} | 
-        Has Joined: {lobbyState.hasJoined ? 'Yes' : 'No'}
+        Has Joined: {lobbyState.hasJoined ? 'Yes' : 'No'} |
+        Game ID: {lobbyState.currentGame?.id || 'None'}
       </div>
 
       {/* Current Game Status */}
-      {lobbyState.currentGame && (
+      {lobbyState.currentGame ? (
         <>
           {lobbyState.hasJoined ? (
             <JoinedGameStatus
@@ -355,6 +373,14 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
             />
           )}
         </>
+      ) : (
+        <div className="text-center p-8 bg-yellow-50 border border-yellow-200 rounded-xl">
+          <RefreshCw className="w-8 h-8 text-yellow-600 animate-spin mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-yellow-800 mb-2">Creating New Game...</h3>
+          <p className="text-yellow-700 text-sm">
+            No scheduled games found. Creating a new lobby game for you to join.
+          </p>
+        </div>
       )}
 
       {/* Refresh Button */}
