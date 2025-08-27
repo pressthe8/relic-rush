@@ -50,7 +50,7 @@ export const useSocketLobby = () => {
       socketUrl = `http://${window.location.hostname}:3001`
     } else if (window.location.hostname.includes('webcontainer-api.io')) {
       // WebContainer environment - construct URL using current origin and replace port
-      const currentOrigin = window.location.origin.replace('https://', 'http://')
+      const currentOrigin = window.location.origin
       const frontendPort = window.location.port || '5173'
       socketUrl = currentOrigin.replace(`--${frontendPort}--`, '--3001--')
     } else {
