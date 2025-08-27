@@ -13,6 +13,11 @@ const __dirname = dirname(__filename);
 // Load environment variables from server directory
 dotenv.config({ path: join(__dirname, '.env') });
 
+// Also try loading from project root as fallback
+if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY) {
+  dotenv.config({ path: join(__dirname, '..', '.env') });
+}
+
 const app = express();
 const server = createServer(app);
 
@@ -32,6 +37,12 @@ if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY) {
   console.error('❌ Missing required environment variables:');
   console.error('VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL ? '✅' : '❌');
   console.error('VITE_SUPABASE_ANON_KEY:', process.env.VITE_SUPABASE_ANON_KEY ? '✅' : '❌');
+  console.error('');
+  console.error('Please create a .env file in the server/ directory with:');
+  console.error('VITE_SUPABASE_URL=your-supabase-project-url');
+  console.error('VITE_SUPABASE_ANON_KEY=your-supabase-anon-key');
+  console.error('');
+  console.error('You can get these values from your Supabase project settings.');
   process.exit(1);
 }
 
