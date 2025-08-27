@@ -47,15 +47,15 @@ export const useSocketLobby = () => {
     
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       // Local development
-      socketUrl = `${window.location.protocol}//${window.location.hostname}:3001`
+      socketUrl = `http://${window.location.hostname}:3001`
     } else if (window.location.hostname.includes('webcontainer-api.io')) {
       // WebContainer environment - construct URL using current origin and replace port
-      const currentOrigin = window.location.origin
+      const currentOrigin = window.location.origin.replace('https://', 'http://')
       const frontendPort = window.location.port || '5173'
       socketUrl = currentOrigin.replace(`--${frontendPort}--`, '--3001--')
     } else {
       // Fallback for other environments
-      socketUrl = `${window.location.protocol}//${window.location.hostname}:3001`
+      socketUrl = `http://${window.location.hostname}:3001`
     }
     
     console.log('🔌 Connecting to Socket.IO server at:', socketUrl)
