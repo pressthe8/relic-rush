@@ -49,8 +49,10 @@ export const useSocketLobby = () => {
       // Local development
       socketUrl = `${window.location.protocol}//${window.location.hostname}:3001`
     } else if (window.location.hostname.includes('webcontainer-api.io')) {
-      // WebContainer environment - use internal localhost connection
-      socketUrl = 'http://localhost:3001'
+      // WebContainer environment - construct URL using current origin and replace port
+      const currentOrigin = window.location.origin
+      const frontendPort = window.location.port || '5173'
+      socketUrl = currentOrigin.replace(`:${frontendPort}`, ':3001')
     } else {
       // Fallback for other environments
       socketUrl = `${window.location.protocol}//${window.location.hostname}:3001`
