@@ -11,12 +11,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Load environment variables from server directory
-dotenv.config({ path: join(__dirname, '.env') });
+// dotenv.config({ path: join(__dirname, '.env') });
 
 // Also try loading from project root as fallback
-if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY) {
-  dotenv.config({ path: join(__dirname, '..', '.env') });
-}
+dotenv.config({ path: join(__dirname, '..', '.env') });
 
 const app = express();
 const server = createServer(app);
