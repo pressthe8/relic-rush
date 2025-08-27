@@ -27,7 +27,8 @@ const io = new Server(server, {
     credentials: true
   },
   allowEIO3: true, // Allow Engine.IO v3 clients
-  transports: ['websocket', 'polling'] // Enable both transport methods
+  transports: ['websocket', 'polling'], // Enable both transport methods
+  path: '/socket.io/' // Explicitly define the Socket.IO path
 });
 
 // Validate environment variables

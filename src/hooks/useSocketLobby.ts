@@ -63,7 +63,8 @@ export const useSocketLobby = () => {
     const newSocket = io(socketUrl, {
       transports: ['websocket', 'polling'], // Try websocket first, fallback to polling
       timeout: 20000,
-      forceNew: true
+      forceNew: true,
+      path: '/socket.io/' // Explicitly define the Socket.IO path
     })
     
     setSocket(newSocket)
