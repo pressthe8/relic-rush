@@ -10,11 +10,11 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load environment variables from server directory
-// dotenv.config({ path: join(__dirname, '.env') });
-
-// Also try loading from project root as fallback
+// Load environment variables from project root (where .env file is located)
 dotenv.config({ path: join(__dirname, '..', '.env') });
+
+// Also try loading from server directory as fallback
+dotenv.config({ path: join(__dirname, '.env') });
 
 const app = express();
 const server = createServer(app);
