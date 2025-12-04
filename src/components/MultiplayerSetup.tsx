@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { GameSettings, GridSize } from '../types'
 import { Settings, Users, User, Grid2x2, Plus, LogIn, Copy, Check, AlertCircle, Clock } from 'lucide-react'
-import { isValidGameCode } from '../lib/supabase'
+import { isValidGameCode } from '../lib/firebase'
 
 interface MultiplayerSetupProps {
   settings: GameSettings
@@ -44,7 +44,7 @@ export const MultiplayerSetup: React.FC<MultiplayerSetupProps> = ({
   const handleJoinGameCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.toUpperCase() // Auto-uppercase for consistency
     setJoinGameCode(value)
-    
+
     // Clear validation error when user starts typing
     if (validationError) {
       setValidationError('')
@@ -54,17 +54,17 @@ export const MultiplayerSetup: React.FC<MultiplayerSetupProps> = ({
   const handleJoinSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const trimmedCode = joinGameCode.trim()
-    
+
     if (!trimmedCode) {
       setValidationError('Please enter a game code')
       return
     }
-    
+
     if (!isValidGameCode(trimmedCode)) {
       setValidationError('Please enter a valid 6-character game code (e.g., ABC123)')
       return
     }
-    
+
     setValidationError('')
     onJoinGame(trimmedCode)
   }
@@ -133,11 +133,10 @@ export const MultiplayerSetup: React.FC<MultiplayerSetupProps> = ({
                     key={size}
                     onClick={() => handleChange('gridSize', size)}
                     disabled={isLoading}
-                    className={`py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${
-                      settings.gridSize === size
+                    className={`py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${settings.gridSize === size
                         ? 'bg-amber-600 text-white'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
+                      }`}
                   >
                     <Grid2x2 className="w-4 h-4" />
                     {size}x{size}
@@ -205,9 +204,8 @@ export const MultiplayerSetup: React.FC<MultiplayerSetupProps> = ({
                 placeholder="Enter 6-character code (e.g., ABC123)"
                 maxLength={6}
                 disabled={isLoading}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:opacity-50 text-center text-lg font-mono tracking-wider uppercase ${
-                  validationError ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                }`}
+                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:opacity-50 text-center text-lg font-mono tracking-wider uppercase ${validationError ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
               />
               {validationError && (
                 <div className="mt-2 flex items-center gap-2 text-red-600 text-sm">

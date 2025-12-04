@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
-import { generateMockPlayerId } from '../lib/supabase'
+import { generateMockPlayerId } from '../lib/firebase'
 
 interface LobbyGame {
   id: string
@@ -56,7 +56,7 @@ export const useSocketLobby = () => {
       reconnectionDelay: 1000,
       path: '/socket.io/'
     })
-    
+
     setSocket(newSocket)
 
     // Connection events

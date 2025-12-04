@@ -1,6 +1,6 @@
 import React from 'react'
 import { Trophy, Medal, Award, RotateCcw, ArrowLeft } from 'lucide-react'
-import { PlayerBoard } from '../lib/supabase'
+import { PlayerBoard } from '../lib/firebase'
 
 interface GameFinaleProps {
   finalResults: PlayerBoard[]

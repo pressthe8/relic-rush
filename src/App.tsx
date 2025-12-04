@@ -5,12 +5,10 @@ import { MultiplayerBoard } from './components/MultiplayerBoard'
 import { GameFinale } from './components/GameFinale'
 import { GameIntroduction } from './components/GameIntroduction'
 import { SocketGameLobby } from './components/SocketGameLobby'
-import { SupabaseConnectionTest } from './components/SupabaseConnectionTest'
-import { LobbySystemDiagnostic } from './components/LobbySystemDiagnostic'
 import { Gem, ArrowLeft } from 'lucide-react'
 import { GameSettings, GridSize } from './types'
 
-type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game' | 'connection-test' | 'lobby-diagnostic'
+type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game'
 
 function App() {
   const [appMode, setAppMode] = useState<AppMode>('lobby') // Switch to lobby as default
@@ -20,10 +18,10 @@ function App() {
     digAttempts: 10,
     gameMode: 'single' // Keep for compatibility but unused
   })
-  
+
   // Feature flag for private games (parked for now)
   const ENABLE_PRIVATE_GAMES = false
-  
+
   // Multiplayer game state
   const {
     session,
@@ -112,18 +110,6 @@ function App() {
           >
             📖 Introduction
           </button>
-          <button
-            onClick={() => setAppMode('lobby-diagnostic')}
-            className={`px-3 py-1 rounded ${appMode === 'lobby-diagnostic' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
-          >
-            🔍 Diagnostics
-          </button>
-          <button
-            onClick={() => setAppMode('connection-test')}
-            className={`px-3 py-1 rounded ${appMode === 'connection-test' ? 'bg-orange-600 text-white' : 'bg-gray-200'}`}
-          >
-            🔧 Connection Test
-          </button>
           {ENABLE_PRIVATE_GAMES && (
             <button
               onClick={() => setAppMode('private-setup')}
@@ -134,19 +120,11 @@ function App() {
           )}
         </div>
 
-        {/* Lobby System Diagnostic */}
-        {appMode === 'lobby-diagnostic' && (
-          <LobbySystemDiagnostic />
-        )}
 
-        {/* Connection Test Mode */}
-        {appMode === 'connection-test' && (
-          <SupabaseConnectionTest />
-        )}
 
         {/* Introduction Screen */}
         {appMode === 'introduction' && (
-          <GameIntroduction 
+          <GameIntroduction
             onEnterLobby={handleEnterLobby}
             onEnterPrivateSetup={ENABLE_PRIVATE_GAMES ? handleEnterPrivateSetup : undefined}
           />
@@ -184,7 +162,7 @@ function App() {
               onCreateGame={handleCreateMultiplayerGame}
               onJoinGame={handleJoinMultiplayerGame}
               isLoading={isLoading}
-              gameCode={session?.game_code}
+              gameCode={session?.gameCode}
             />
           </>
         )}
@@ -205,8 +183,8 @@ function App() {
                 finalResults={finalResults}
                 onPlayAgain={handlePlayAgain}
                 onBackToMenu={handleBackToIntroduction}
-                gameStartTime={session?.start_time}
-                gameEndTime={session?.end_time}
+                gameStartTime={session?.startTime}
+                gameEndTime={session?.endTime}
               />
             ) : !session || !playerBoard ? (
               <div className="text-center">
@@ -218,14 +196,14 @@ function App() {
                 otherPlayers={otherPlayers}
                 onDig={multiplayerDig}
                 isLoading={isLoading}
-                gameCode={session.game_code}
+                gameCode={session.gameCode}
               />
             )}
           </>
         )}
 
         {/* Fallback for Unknown State */}
-        {!['introduction', 'lobby', 'private-setup', 'game', 'connection-test', 'lobby-diagnostic'].includes(appMode) && (
+        {!['introduction', 'lobby', 'private-setup', 'game'].includes(appMode) && (
           <div className="text-center">
             <p className="text-red-600">Unknown app state: {appMode}</p>
             <button

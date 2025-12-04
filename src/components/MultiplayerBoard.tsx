@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Square } from './Square'
-import { PlayerBoard } from '../lib/supabase'
+import { PlayerBoard } from '../lib/firebase'
 import { Users, Trophy, Shovel, Copy, Check, Hash } from 'lucide-react'
 
 interface Position {

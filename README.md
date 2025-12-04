@@ -78,8 +78,9 @@ The game features an innovative "heat map" system that provides strategic intell
 ## Technical Features
 
 ### Real-time Multiplayer Infrastructure
-- **Supabase Backend**: Robust real-time database with automatic synchronization
-- **Row Level Security**: Secure multi-player data isolation and access control
+- **Firebase Firestore**: Real-time NoSQL database with instant synchronization
+- **Native WebSocket Listeners**: Built-in real-time updates via onSnapshot()
+- **Anonymous Authentication**: Secure serverless authentication
 - **Automatic Game Management**: Session creation, player joining, and completion detection
 
 ### Responsive Design
@@ -88,7 +89,7 @@ The game features an innovative "heat map" system that provides strategic intell
 - **Touch-Friendly Interface**: Intuitive controls for all device types
 
 ### Performance Optimizations
-- **Efficient Polling**: Smart update intervals for real-time synchronization
+- **Real-time Listeners**: Instant updates via WebSocket connections (no polling)
 - **Local State Management**: Immediate UI feedback with database synchronization
 - **Optimized Rendering**: Smooth animations and transitions
 
@@ -133,7 +134,7 @@ The game features an innovative "heat map" system that provides strategic intell
 ### Prerequisites
 - Node.js (v16 or higher)
 - npm or yarn package manager
-- Supabase account and project (for multiplayer features)
+- Firebase account and project (for multiplayer features)
 
 ### Installation
 
@@ -148,12 +149,54 @@ The game features an innovative "heat map" system that provides strategic intell
    npm install
    ```
 
-3. **Configure environment variables**
-   Create a `.env` file in the project root with your Supabase credentials:
-   ```
-   VITE_SUPABASE_URL=your-supabase-project-url
-   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-   ```
+3. **Configure Firebase**
+   
+   a. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
+   
+   b. Enable **Anonymous Authentication**:
+      - Go to Authentication → Sign-in method
+      - Enable "Anonymous" provider
+      
+   c. Create **Firestore Database**:
+      - Go to Firestore Database → Create database
+      - Start in production mode
+      - Apply security rules (see below)
+   
+   d. Get your Firebase configuration:
+      - Project Settings → Web app
+      - Copy configuration values
+   
+   e. Create a `.env` file in the project root:
+      ```env
+      # Firebase Client (Web)
+      VITE_FIREBASE_API_KEY=your-api-key
+      VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+      VITE_FIREBASE_PROJECT_ID=your-project-id
+      VITE_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
+      VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+      VITE_FIREBASE_APP_ID=your-app-id
+      VITE_FIREBASE_MEASUREMENT_ID=your-measurement-id
+      
+      # Firebase Server (Admin SDK) - for Socket.IO server
+      FIREBASE_PROJECT_ID=your-project-id
+      FIREBASE_CLIENT_EMAIL=your-service-account-email
+      FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+      ```
+   
+   f. Apply Firestore Security Rules:
+      ```javascript
+      rules_version = '2';
+      service cloud.firestore {
+        match /databases/{database}/documents {
+          match /gameSessions/{sessionId} {
+            allow read, write: if request.auth != null;
+          }
+          match /playerBoards/{playerId} {
+            allow read, write: if request.auth != null;
+          }
+        }
+      }
+      ```
 
 ### Running the Application
 
@@ -177,11 +220,11 @@ The Socket.IO server is now automatically integrated with the Vite development s
 
 ### Troubleshooting
 
-If you encounter WebSocket connection errors:
-1. Restart the development server (`npm run dev`)
-2. Check browser console for detailed error messages
-3. Use the built-in diagnostic tool in the app to test connections
-4. Verify Supabase environment variables are correctly configured in `.env`
+If you encounter connection errors:
+1. Verify Anonymous Authentication is enabled in Firebase Console
+2. Check that Firestore security rules are applied
+3. Ensure `.env` file has correct Firebase credentials
+4. Restart the development server (`npm run dev`)
 
 ## Contributing
 

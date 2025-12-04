@@ -1,7 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import { createClient } from '@supabase/supabase-js';
+import admin from 'firebase-admin';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -37,24 +37,37 @@ const io = new Server(server, {
 });
 
 // Validate environment variables
-if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_ANON_KEY) {
-  console.error('❌ Missing required environment variables:');
-  console.error('VITE_SUPABASE_URL:', process.env.VITE_SUPABASE_URL ? '✅' : '❌');
-  console.error('VITE_SUPABASE_ANON_KEY:', process.env.VITE_SUPABASE_ANON_KEY ? '✅' : '❌');
+if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
+  console.error('❌ Missing required Firebase environment variables:');
+  console.error('FIREBASE_PROJECT_ID:', process.env.FIREBASE_PROJECT_ID ? '✅' : '❌');
+  console.error('FIREBASE_CLIENT_EMAIL:', process.env.FIREBASE_CLIENT_EMAIL ? '✅' : '❌');
+  console.error('FIREBASE_PRIVATE_KEY:', process.env.FIREBASE_PRIVATE_KEY ? '✅' : '❌');
   console.error('');
-  console.error('Please create a .env file in the server/ directory with:');
-  console.error('VITE_SUPABASE_URL=your-supabase-project-url');
-  console.error('VITE_SUPABASE_ANON_KEY=your-supabase-anon-key');
+  console.error('Please create a .env file in the project root with:');
+  console.error('FIREBASE_PROJECT_ID=your-project-id');
+  console.error('FIREBASE_CLIENT_EMAIL=your-service-account-email');
+  console.error('FIREBASE_PRIVATE_KEY=your-private-key');
   console.error('');
-  console.error('You can get these values from your Supabase project settings.');
+  console.error('You can get these values from your Firebase project service account.');
   process.exit(1);
 }
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.VITE_SUPABASE_URL,
-  process.env.VITE_SUPABASE_ANON_KEY
-);
+// Initialize Firebase Admin SDK
+try {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+    })
+  });
+  console.log('✅ Firebase Admin SDK initialized successfully');
+} catch (error) {
+  console.error('❌ Failed to initialize Firebase Admin SDK:', error);
+  process.exit(1);
+}
+
+const db = admin.firestore();
 
 // In-memory lobby state for fast access
 let lobbyState = {
@@ -70,7 +83,7 @@ const generateGameCode = () => {
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const numbers = '0123456789';
   let code = '';
-  
+
   // 3 letters + 3 numbers
   for (let i = 0; i < 3; i++) {
     code += letters.charAt(Math.floor(Math.random() * letters.length));
@@ -78,53 +91,58 @@ const generateGameCode = () => {
   for (let i = 0; i < 3; i++) {
     code += numbers.charAt(Math.floor(Math.random() * numbers.length));
   }
-  
+
   return code;
 };
 
 const createLobbyGame = async () => {
   try {
     console.log('🎮 Creating new lobby game...');
-    
+
     // Generate treasure positions for 6x6 grid
     const treasurePositions = [];
     const usedPositions = new Set();
-    
+
     while (treasurePositions.length < 5) {
       const row = Math.floor(Math.random() * 6);
       const col = Math.floor(Math.random() * 6);
       const key = `${row},${col}`;
-      
+
       if (!usedPositions.has(key)) {
         treasurePositions.push({ row, col });
         usedPositions.add(key);
       }
     }
-    
+
     const gameCode = generateGameCode();
     const scheduledStartTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-    
-    const { data: game, error } = await supabase
-      .from('game_sessions')
-      .insert({
-        game_code: gameCode,
-        grid_size: 6,
-        treasure_count: 5,
-        dig_attempts: 10,
-        treasure_positions: treasurePositions,
-        scheduled_start_time: scheduledStartTime.toISOString(),
-        status: 'scheduled',
-        is_lobby_game: true,
-        max_players: 6,
-        game_settings: { gridSize: 6, treasureCount: 5, digAttempts: 10, gameMode: 'multiplayer' },
-        all_discoveries: []
-      })
-      .select()
-      .single();
-    
-    if (error) throw error;
-    
-    console.log('✅ Created lobby game:', game.game_code);
+
+    const gameRef = db.collection('gameSessions').doc();
+    const gameData = {
+      gameCode: gameCode,
+      gridSize: 6,
+      treasureCount: 5,
+      digAttempts: 10,
+      treasurePositions: treasurePositions,
+      scheduledStartTime: scheduledStartTime.toISOString(),
+      status: 'scheduled',
+      isLobbyGame: true,
+      maxPlayers: 6,
+      gameSettings: { gridSize: 6, treasureCount: 5, digAttempts: 10, gameMode: 'multiplayer' },
+      allDiscoveries: [],
+      createdAt: new Date().toISOString(),
+      lastUpdated: new Date().toISOString(),
+      startTime: ''
+    };
+
+    await gameRef.set(gameData);
+
+    const game = {
+      id: gameRef.id,
+      ...gameData
+    };
+
+    console.log('✅ Created lobby game:', game.gameCode);
     return game;
   } catch (error) {
     console.error('❌ Failed to create lobby game:', error);
@@ -135,20 +153,16 @@ const createLobbyGame = async () => {
 const startGame = async (gameId) => {
   try {
     console.log('🚀 Starting game:', gameId);
-    
-    const { error } = await supabase
-      .from('game_sessions')
-      .update({
-        status: 'active',
-        start_time: new Date().toISOString()
-      })
-      .eq('id', gameId);
-    
-    if (error) throw error;
-    
+
+    await db.collection('gameSessions').doc(gameId).update({
+      status: 'active',
+      startTime: new Date().toISOString(),
+      lastUpdated: new Date().toISOString()
+    });
+
     // Notify all players that the game is starting
     io.to('lobby').emit('gameStarting', { gameId });
-    
+
     console.log('✅ Game started successfully');
   } catch (error) {
     console.error('❌ Failed to start game:', error);
@@ -158,23 +172,24 @@ const startGame = async (gameId) => {
 const cancelGame = async (gameId) => {
   try {
     console.log('❌ Cancelling game:', gameId);
-    
-    const { error } = await supabase
-      .from('game_sessions')
-      .update({
-        status: 'cancelled',
-        end_time: new Date().toISOString()
-      })
-      .eq('id', gameId);
-    
-    if (error) throw error;
-    
+
+    await db.collection('gameSessions').doc(gameId).update({
+      status: 'cancelled',
+      endTime: new Date().toISOString(),
+      lastUpdated: new Date().toISOString()
+    });
+
     // Remove all players from cancelled game
-    await supabase
-      .from('player_boards')
-      .delete()
-      .eq('session_id', gameId);
-    
+    const playersSnapshot = await db.collection('playerBoards')
+      .where('sessionId', '==', gameId)
+      .get();
+
+    const batch = db.batch();
+    playersSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+
     console.log('✅ Game cancelled successfully');
   } catch (error) {
     console.error('❌ Failed to cancel game:', error);
@@ -184,18 +199,22 @@ const cancelGame = async (gameId) => {
 const ensureLobbyGame = async () => {
   try {
     // Check if there's already a scheduled lobby game
-    const { data: existingGame } = await supabase
-      .from('game_sessions')
-      .select('*')
-      .eq('is_lobby_game', true)
-      .eq('status', 'scheduled')
-      .single();
-    
-    if (existingGame) {
-      console.log('✅ Found existing lobby game:', existingGame.game_code);
+    const existingGameSnapshot = await db.collection('gameSessions')
+      .where('isLobbyGame', '==', true)
+      .where('status', '==', 'scheduled')
+      .limit(1)
+      .get();
+
+    if (!existingGameSnapshot.empty) {
+      const existingGameDoc = existingGameSnapshot.docs[0];
+      const existingGame = {
+        id: existingGameDoc.id,
+        ...existingGameDoc.data()
+      };
+      console.log('✅ Found existing lobby game:', existingGame.gameCode);
       return existingGame;
     }
-    
+
     // Create new lobby game
     return await createLobbyGame();
   } catch (error) {
@@ -209,11 +228,11 @@ const broadcastLobbyUpdate = () => {
     currentGame: lobbyState.currentGame,
     playerCount: lobbyState.players.size,
     players: Array.from(lobbyState.players.values()).map(p => ({
-      id: p.playerData.mock_player_id,
-      joinedAt: p.playerData.joined_at
+      id: p.playerData.mockPlayerId,
+      joinedAt: p.playerData.joinedAt
     }))
   };
-  
+
   io.to('lobby').emit('lobbyUpdate', lobbyData);
   console.log('📡 Broadcasted lobby update:', lobbyData);
 };
@@ -222,15 +241,15 @@ const setupGameTimer = () => {
   if (lobbyState.gameTimer) {
     clearTimeout(lobbyState.gameTimer);
   }
-  
+
   if (!lobbyState.currentGame) return;
-  
-  const timeUntilStart = new Date(lobbyState.currentGame.scheduled_start_time).getTime() - Date.now();
-  
+
+  const timeUntilStart = new Date(lobbyState.currentGame.scheduledStartTime).getTime() - Date.now();
+
   if (timeUntilStart > 0) {
     lobbyState.gameTimer = setTimeout(async () => {
       console.log('⏰ Game timer expired');
-      
+
       if (lobbyState.players.size >= 2) {
         // Start the game
         await startGame(lobbyState.currentGame.id);
@@ -243,7 +262,7 @@ const setupGameTimer = () => {
         broadcastLobbyUpdate();
       }
     }, timeUntilStart);
-    
+
     console.log(`⏰ Game timer set for ${Math.round(timeUntilStart / 1000)}s`);
   }
 };
@@ -253,32 +272,31 @@ app.use(express.json());
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
     lobbyPlayers: lobbyState.players.size,
-    currentGame: lobbyState.currentGame?.game_code || 'none',
-    environment: 'webcontainer',
-    supabaseUrl: process.env.VITE_SUPABASE_URL ? 'configured' : 'missing',
-    supabaseKey: process.env.VITE_SUPABASE_ANON_KEY ? 'configured' : 'missing'
+    currentGame: lobbyState.currentGame?.gameCode || 'none',
+    environment: 'firebase',
+    firebaseProjectId: process.env.FIREBASE_PROJECT_ID || 'missing'
   });
 });
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('🔌 User connected:', socket.id);
-  
+
   socket.on('joinLobby', async () => {
     console.log('🎮 User joining lobby:', socket.id);
-    
+
     socket.join('lobby');
-    
+
     // Ensure we have a lobby game
     if (!lobbyState.currentGame) {
       lobbyState.currentGame = await ensureLobbyGame();
       setupGameTimer();
     }
-    
+
     // Send current lobby state
     socket.emit('lobbyState', {
       currentGame: lobbyState.currentGame,
@@ -286,16 +304,16 @@ io.on('connection', (socket) => {
       hasJoined: false
     });
   });
-  
+
   socket.on('joinGame', async (data) => {
     const { mockPlayerId } = data;
     console.log('🎯 Player joining game:', mockPlayerId);
-    
+
     if (!lobbyState.currentGame || lobbyState.players.size >= 6) {
       socket.emit('joinError', { message: 'Game is full or not available' });
       return;
     }
-    
+
     try {
       // Create initial board state
       const initialBoard = Array(6).fill(null).map(() =>
@@ -305,96 +323,93 @@ io.on('connection', (socket) => {
           discoveryCount: 0
         }))
       );
-      
+
       // Place treasures
-      lobbyState.currentGame.treasure_positions.forEach(pos => {
+      lobbyState.currentGame.treasurePositions.forEach(pos => {
         if (initialBoard[pos.row] && initialBoard[pos.row][pos.col]) {
           initialBoard[pos.row][pos.col].isTreasure = true;
         }
       });
-      
+
       // Add player to database
-      const { data: playerBoard, error } = await supabase
-        .from('player_boards')
-        .insert({
-          mock_player_id: mockPlayerId,
-          is_mock_player: true,
-          session_id: lobbyState.currentGame.id,
-          board_state: initialBoard,
-          remaining_digs: 10,
-          score: 0,
-          discoveries: [],
-          sub_grid_hints: {}
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
+      const playerRef = db.collection('playerBoards').doc();
+      const playerData = {
+        mockPlayerId: mockPlayerId,
+        isMockPlayer: true,
+        sessionId: lobbyState.currentGame.id,
+        boardState: initialBoard,
+        remainingDigs: 10,
+        score: 0,
+        discoveries: [],
+        subGridHints: {},
+        joinedAt: new Date().toISOString()
+      };
+
+      await playerRef.set(playerData);
+
+      const playerBoard = {
+        id: playerRef.id,
+        ...playerData
+      };
+
       // Add to lobby state
       lobbyState.players.set(mockPlayerId, {
         socketId: socket.id,
         playerData: playerBoard
       });
-      
+
       socket.emit('joinSuccess', { playerBoard });
       broadcastLobbyUpdate();
-      
+
       // Check if we should start the game immediately (6 players)
       if (lobbyState.players.size >= 6) {
         await startGame(lobbyState.currentGame.id);
       }
-      
+
     } catch (error) {
       console.error('❌ Failed to join game:', error);
       socket.emit('joinError', { message: 'Failed to join game' });
     }
   });
-  
+
   socket.on('leaveGame', async (data) => {
     const { mockPlayerId } = data;
     console.log('🚪 Player leaving game:', mockPlayerId);
-    
+
     if (lobbyState.players.has(mockPlayerId)) {
       try {
+        const playerInfo = lobbyState.players.get(mockPlayerId);
+
         // Remove from database
-        await supabase
-          .from('player_boards')
-          .delete()
-          .eq('session_id', lobbyState.currentGame.id)
-          .eq('mock_player_id', mockPlayerId);
-        
+        await db.collection('playerBoards').doc(playerInfo.playerData.id).delete();
+
         // Remove from lobby state
         lobbyState.players.delete(mockPlayerId);
-        
+
         socket.emit('leaveSuccess');
         broadcastLobbyUpdate();
-        
+
       } catch (error) {
         console.error('❌ Failed to leave game:', error);
         socket.emit('leaveError', { message: 'Failed to leave game' });
       }
     }
   });
-  
+
   socket.on('disconnect', () => {
     console.log('🔌 User disconnected:', socket.id);
-    
+
     // Find and remove player by socket ID
     for (const [playerId, playerInfo] of lobbyState.players.entries()) {
       if (playerInfo.socketId === socket.id) {
         console.log('🚪 Auto-removing disconnected player:', playerId);
         lobbyState.players.delete(playerId);
-        
+
         // Remove from database
-        supabase
-          .from('player_boards')
-          .delete()
-          .eq('session_id', lobbyState.currentGame?.id)
-          .eq('mock_player_id', playerId)
+        db.collection('playerBoards').doc(playerInfo.playerData.id).delete()
           .then(() => broadcastLobbyUpdate())
           .catch(console.error);
-        
+
         break;
       }
     }
@@ -404,27 +419,31 @@ io.on('connection', (socket) => {
 // Initialize lobby system
 const initializeLobby = async () => {
   console.log('🚀 Initializing lobby system...');
-  
+
   try {
-    // Test Supabase connection
-    const { data, error } = await supabase.from('game_sessions').select('count').limit(1);
-    if (error) {
-      console.error('❌ Supabase connection failed:', error);
-      return;
-    }
-    console.log('✅ Supabase connection successful');
-    
+    // Test Firebase connection
+    await db.collection('gameSessions').limit(1).get();
+    console.log('✅ Firebase connection successful');
+
     // Clean up any existing lobby games
-    await supabase
-      .from('game_sessions')
-      .update({ status: 'cancelled' })
-      .eq('is_lobby_game', true)
-      .in('status', ['scheduled', 'waiting']);
-    
+    const existingLobbyGames = await db.collection('gameSessions')
+      .where('isLobbyGame', '==', true)
+      .where('status', 'in', ['scheduled', 'waiting'])
+      .get();
+
+    const batch = db.batch();
+    existingLobbyGames.docs.forEach(doc => {
+      batch.update(doc.ref, {
+        status: 'cancelled',
+        lastUpdated: new Date().toISOString()
+      });
+    });
+    await batch.commit();
+
     // Create initial lobby game
     lobbyState.currentGame = await ensureLobbyGame();
     setupGameTimer();
-    
+
     console.log('✅ Lobby system initialized');
   } catch (error) {
     console.error('❌ Failed to initialize lobby system:', error);
@@ -440,8 +459,8 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🔗 Server accessible at: http://localhost:${PORT}`);
   console.log(`🔗 Health check available at: http://localhost:${PORT}/health`);
   console.log(`📊 Environment variables loaded:`, {
-    supabaseUrl: process.env.VITE_SUPABASE_URL ? 'configured' : 'missing',
-    supabaseKey: process.env.VITE_SUPABASE_ANON_KEY ? 'configured' : 'missing'
+    firebaseProjectId: process.env.FIREBASE_PROJECT_ID || 'missing',
+    firebaseClientEmail: process.env.FIREBASE_CLIENT_EMAIL ? 'configured' : 'missing'
   });
   console.log(`⚙️  Socket.IO config: transports=[polling, websocket], path=/socket.io/`);
   initializeLobby();

@@ -1,8 +1,25 @@
 import { useState, useCallback, useEffect } from 'react'
-import { supabase, generateMockPlayerId, generateGameCode, isValidGameCode, GameSession, PlayerBoard, Discovery } from '../lib/supabase'
-import { GameSettings, Position, PlayerState, SubGridHints } from '../types'
+import {
+  generateMockPlayerId,
+  generateGameCode,
+  isValidGameCode,
+  GameSession,
+  PlayerBoard,
+  Discovery,
+  createGameSession as createFirebaseGameSession,
+  getGameSession,
+  getGameSessionByCode,
+  updateGameSession,
+  createPlayerBoard,
+  getPlayerBoardsBySession,
+  getPlayerBoardByMockId,
+  updatePlayerBoard,
+  subscribeToGameSession,
+  subscribeToPlayerBoards
+} from '../lib/firebase'
+import { GameSettings, Position } from '../types'
 import { createInitialBoard, placeTreasures, calculatePoints } from '../utils/gameLogic'
-import { calculateSubGridHintsFromCentralLog, updateAllPlayersHintsFromCentralLog } from '../utils/centralHintUtils'
+import { calculateSubGridHintsFromCentralLog } from '../utils/centralHintUtils'
 
 interface MultiplayerGameState {
   session: GameSession | null
@@ -27,52 +44,42 @@ export const useMultiplayerGame = () => {
     finalResults: null
   })
 
-  // Polling interval for updates
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null)
+  // Unsubscribe functions
+  const [unsubscribers, setUnsubscribers] = useState<(() => void)[]>([])
 
   // Check if game should be completed
   const checkGameCompletion = useCallback(async (sessionId: string) => {
     try {
       console.log('=== CHECKING GAME COMPLETION ===')
       console.log('Session ID:', sessionId)
-      
-      // First check if session is already completed or cancelled
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('game_sessions')
-        .select('status, start_time, end_time')
-        .eq('id', sessionId)
-        .single()
 
-      if (sessionError) {
-        console.error('Error fetching session:', sessionError)
-        throw sessionError
+      // First check if session is already completed or cancelled
+      const sessionData = await getGameSession(sessionId)
+      if (!sessionData) {
+        console.error('Session not found')
+        return false
       }
 
       console.log('Current session status:', sessionData.status)
-      
+
       if (sessionData.status === 'completed') {
         console.log('Session already marked as completed, loading final results...')
-        
-        // Load final results
-        const { data: allBoards, error: boardsError } = await supabase
-          .from('player_boards')
-          .select('*')
-          .eq('session_id', sessionId)
-          .order('score', { ascending: false })
 
-        if (boardsError) throw boardsError
+        // Load final results
+        const allBoards = await getPlayerBoardsBySession(sessionId)
+        const sortedBoards = allBoards.sort((a, b) => b.score - a.score)
 
         setState(prev => ({
           ...prev,
           gameCompleted: true,
-          finalResults: allBoards,
-          session: prev.session ? {
-            ...prev.session,
-            start_time: sessionData.start_time,
-            end_time: sessionData.end_time
-          } : null
+          finalResults: sortedBoards,
+          session: {
+            ...sessionData,
+            startTime: sessionData.startTime,
+            endTime: sessionData.endTime
+          }
         }))
-        
+
         return true
       }
 
@@ -86,18 +93,13 @@ export const useMultiplayerGame = () => {
         }))
         return true
       }
-      
-      // Get all player boards for this session
-      const { data: allBoards, error } = await supabase
-        .from('player_boards')
-        .select('*')
-        .eq('session_id', sessionId)
 
-      if (error) throw error
+      // Get all player boards for this session
+      const allBoards = await getPlayerBoardsBySession(sessionId)
 
       console.log('All boards in session:', allBoards)
       console.log('Board count:', allBoards.length)
-      
+
       if (allBoards.length === 0) {
         console.log('No boards found, cannot complete game')
         return false
@@ -105,29 +107,21 @@ export const useMultiplayerGame = () => {
 
       // Log each player's remaining digs
       allBoards.forEach((board, index) => {
-        console.log(`Player ${index + 1} (${board.mock_player_id}): ${board.remaining_digs} digs remaining, score: ${board.score}`)
+        console.log(`Player ${index + 1} (${board.mockPlayerId}): ${board.remainingDigs} digs remaining, score: ${board.score}`)
       })
 
       // Check if all players have 0 remaining digs
-      const allPlayersFinished = allBoards.every(board => board.remaining_digs === 0)
+      const allPlayersFinished = allBoards.every(board => board.remainingDigs === 0)
       console.log('All players finished?', allPlayersFinished)
 
       if (allPlayersFinished && allBoards.length >= 1) {
         console.log('🎉 GAME SHOULD BE COMPLETED! Updating session status...')
-        
-        // Update session status to completed
-        const { error: updateError } = await supabase
-          .from('game_sessions')
-          .update({ 
-            status: 'completed',
-            end_time: new Date().toISOString()
-          })
-          .eq('id', sessionId)
 
-        if (updateError) {
-          console.error('Failed to update session status:', updateError)
-          throw updateError
-        }
+        // Update session status to completed
+        await updateGameSession(sessionId, {
+          status: 'completed',
+          endTime: new Date().toISOString()
+        })
 
         console.log('Session status updated to completed')
 
@@ -135,26 +129,14 @@ export const useMultiplayerGame = () => {
         const sortedResults = allBoards.sort((a, b) => b.score - a.score)
         console.log('Final results (sorted by score):', sortedResults)
 
-        // Get updated session data with end_time
-        const { data: updatedSession, error: sessionUpdateError } = await supabase
-          .from('game_sessions')
-          .select('start_time, end_time')
-          .eq('id', sessionId)
-          .single()
-
-        if (sessionUpdateError) {
-          console.error('Error fetching updated session:', sessionUpdateError)
-        }
+        // Get updated session data with endTime
+        const updatedSession = await getGameSession(sessionId)
 
         setState(prev => ({
           ...prev,
           gameCompleted: true,
           finalResults: sortedResults,
-          session: prev.session && updatedSession ? {
-            ...prev.session,
-            start_time: updatedSession.start_time,
-            end_time: updatedSession.end_time
-          } : prev.session
+          session: updatedSession
         }))
 
         console.log('Game completion state updated!')
@@ -175,41 +157,23 @@ export const useMultiplayerGame = () => {
   const activateGameIfNeeded = useCallback(async (sessionId: string) => {
     try {
       // Get current session status and player count
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('game_sessions')
-        .select('status')
-        .eq('id', sessionId)
-        .single()
-
-      if (sessionError) throw sessionError
+      const sessionData = await getGameSession(sessionId)
+      if (!sessionData) return
 
       // Only activate if currently waiting
       if (sessionData.status !== 'waiting') return
 
       // Count players in session
-      const { data: players, error: playersError } = await supabase
-        .from('player_boards')
-        .select('id')
-        .eq('session_id', sessionId)
-
-      if (playersError) throw playersError
+      const players = await getPlayerBoardsBySession(sessionId)
 
       // Activate if 2 or more players
       if (players.length >= 2) {
         console.log('🎮 Activating game - 2+ players joined')
-        const { error: updateError } = await supabase
-          .from('game_sessions')
-          .update({ 
-            status: 'active',
-            start_time: new Date().toISOString()
-          })
-          .eq('id', sessionId)
-
-        if (updateError) {
-          console.error('Failed to activate game:', updateError)
-        } else {
-          console.log('Game activated successfully')
-        }
+        await updateGameSession(sessionId, {
+          status: 'active',
+          startTime: new Date().toISOString()
+        })
+        console.log('Game activated successfully')
       }
     } catch (error) {
       console.error('Error activating game:', error)
@@ -220,30 +184,17 @@ export const useMultiplayerGame = () => {
   const activateGameOnFirstMove = useCallback(async (sessionId: string) => {
     try {
       // Get current session status
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('game_sessions')
-        .select('status')
-        .eq('id', sessionId)
-        .single()
-
-      if (sessionError) throw sessionError
+      const sessionData = await getGameSession(sessionId)
+      if (!sessionData) return
 
       // Only activate if currently waiting
       if (sessionData.status === 'waiting') {
         console.log('🎮 Activating game - first player made a move')
-        const { error: updateError } = await supabase
-          .from('game_sessions')
-          .update({ 
-            status: 'active',
-            start_time: new Date().toISOString()
-          })
-          .eq('id', sessionId)
-
-        if (updateError) {
-          console.error('Failed to activate game:', updateError)
-        } else {
-          console.log('Game activated on first move')
-        }
+        await updateGameSession(sessionId, {
+          status: 'active',
+          startTime: new Date().toISOString()
+        })
+        console.log('Game activated on first move')
       }
     } catch (error) {
       console.error('Error activating game on first move:', error)
@@ -256,32 +207,23 @@ export const useMultiplayerGame = () => {
 
     try {
       // Find session by ID
-      const { data: session, error: sessionError } = await supabase
-        .from('game_sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .single()
+      const session = await getGameSession(sessionId)
 
-      if (sessionError) {
+      if (!session) {
         throw new Error('Game session not found')
       }
 
       // Check if game is already completed
       if (session.status === 'completed') {
         // Load final results and show completion screen
-        const { data: allBoards, error: boardsError } = await supabase
-          .from('player_boards')
-          .select('*')
-          .eq('session_id', session.id)
-          .order('score', { ascending: false })
-
-        if (boardsError) throw boardsError
+        const allBoards = await getPlayerBoardsBySession(session.id)
+        const sortedBoards = allBoards.sort((a, b) => b.score - a.score)
 
         setState(prev => ({
           ...prev,
           session,
           gameCompleted: true,
-          finalResults: allBoards,
+          finalResults: sortedBoards,
           isLoading: false
         }))
 
@@ -299,49 +241,35 @@ export const useMultiplayerGame = () => {
       }
 
       // Check if we already have a board in this session
-      const { data: existingBoard, error: boardCheckError } = await supabase
-        .from('player_boards')
-        .select('*')
-        .eq('session_id', sessionId)
-        .eq('mock_player_id', state.mockPlayerId)
-        .maybeSingle()
-
-      if (boardCheckError) throw boardCheckError
+      let existingBoard = await getPlayerBoardByMockId(sessionId, state.mockPlayerId)
 
       let playerBoard = existingBoard
 
       if (!playerBoard) {
         // Create initial board state
-        const initialBoard = createInitialBoard(session.grid_size)
-        const boardWithTreasures = placeTreasures(initialBoard, session.treasure_positions)
+        const initialBoard = createInitialBoard(session.gridSize)
+        const boardWithTreasures = placeTreasures(initialBoard, session.treasurePositions)
 
         // Calculate sub-grid hints from central discoveries log
-        console.log('🔍 Calculating initial hints from central discoveries:', session.all_discoveries)
+        console.log('🔍 Calculating initial hints from central discoveries:', session.allDiscoveries)
         const subGridHints = calculateSubGridHintsFromCentralLog(
-          session.all_discoveries || [],
+          session.allDiscoveries || [],
           state.mockPlayerId,
-          session.grid_size
+          session.gridSize
         )
         console.log('🔍 Calculated initial hints for new player:', subGridHints)
 
         // Create player board with calculated sub-grid hints
-        const { data: newPlayerBoard, error: boardError } = await supabase
-          .from('player_boards')
-          .insert({
-            mock_player_id: state.mockPlayerId,
-            is_mock_player: true,
-            session_id: session.id,
-            board_state: boardWithTreasures,
-            remaining_digs: session.dig_attempts,
-            score: 0,
-            discoveries: [], // Keep for backward compatibility
-            sub_grid_hints: subGridHints
-          })
-          .select()
-          .single()
-
-        if (boardError) throw boardError
-        playerBoard = newPlayerBoard
+        playerBoard = await createPlayerBoard({
+          mockPlayerId: state.mockPlayerId,
+          isMockPlayer: true,
+          sessionId: session.id,
+          boardState: boardWithTreasures,
+          remainingDigs: session.digAttempts,
+          score: 0,
+          discoveries: [], // Keep for backward compatibility
+          subGridHints: subGridHints
+        })
       }
 
       setState(prev => ({
@@ -351,21 +279,22 @@ export const useMultiplayerGame = () => {
         isLoading: false
       }))
 
-      // Load other players and start polling
+      // Load other players
       await loadOtherPlayers(session.id, state.mockPlayerId)
-      
+
       // Check if game should be activated (2+ players)
       await activateGameIfNeeded(session.id)
-      
-      startPolling(session.id, state.mockPlayerId)
+
+      // Set up real-time listeners
+      setupRealtimeListeners(session.id, state.mockPlayerId)
 
       return true
     } catch (error) {
       console.error('Error joining game session:', error)
-      
+
       // Enhanced error handling to extract user-friendly messages
       let errorMessage = 'Failed to join game session'
-      
+
       if (error instanceof Error) {
         errorMessage = error.message
       } else if (error && typeof error === 'object' && 'message' in error) {
@@ -373,7 +302,7 @@ export const useMultiplayerGame = () => {
       } else if (typeof error === 'string') {
         errorMessage = error
       }
-      
+
       setState(prev => ({
         ...prev,
         error: errorMessage,
@@ -391,12 +320,12 @@ export const useMultiplayerGame = () => {
       // Generate treasure positions
       const treasurePositions = []
       const usedPositions = new Set<string>()
-      
+
       while (treasurePositions.length < settings.treasureCount) {
         const row = Math.floor(Math.random() * settings.gridSize)
         const col = Math.floor(Math.random() * settings.gridSize)
         const key = `${row},${col}`
-        
+
         if (!usedPositions.has(key)) {
           treasurePositions.push({ row, col })
           usedPositions.add(key)
@@ -406,15 +335,11 @@ export const useMultiplayerGame = () => {
       // Generate a unique game code
       let gameCode = generateGameCode()
       let codeExists = true
-      
+
       // Keep generating until we find a unique code
       while (codeExists) {
-        const { data: existingSession } = await supabase
-          .from('game_sessions')
-          .select('id')
-          .eq('game_code', gameCode)
-          .maybeSingle()
-        
+        const existingSession = await getGameSessionByCode(gameCode)
+
         if (!existingSession) {
           codeExists = false
         } else {
@@ -423,45 +348,34 @@ export const useMultiplayerGame = () => {
       }
 
       // Create game session with 'waiting' status and empty discoveries array
-      const { data: session, error: sessionError } = await supabase
-        .from('game_sessions')
-        .insert({
-          game_code: gameCode,
-          grid_size: settings.gridSize,
-          treasure_count: settings.treasureCount,
-          dig_attempts: settings.digAttempts,
-          game_settings: settings,
-          treasure_positions: treasurePositions,
-          all_discoveries: [], // Initialize empty central discoveries log
-          status: 'waiting',
-          is_lobby_game: false // Mark as private game
-        })
-        .select()
-        .single()
-
-      if (sessionError) throw sessionError
+      const session = await createFirebaseGameSession({
+        gameCode: gameCode,
+        gridSize: settings.gridSize,
+        treasureCount: settings.treasureCount,
+        digAttempts: settings.digAttempts,
+        gameSettings: settings,
+        treasurePositions: treasurePositions,
+        allDiscoveries: [], // Initialize empty central discoveries log
+        status: 'waiting',
+        isLobbyGame: false, // Mark as private game
+        startTime: ''
+      })
 
       // Create initial board state
       const initialBoard = createInitialBoard(settings.gridSize)
       const boardWithTreasures = placeTreasures(initialBoard, treasurePositions)
 
       // Create player board with empty sub-grid hints (no discoveries yet)
-      const { data: playerBoard, error: boardError } = await supabase
-        .from('player_boards')
-        .insert({
-          mock_player_id: state.mockPlayerId,
-          is_mock_player: true,
-          session_id: session.id,
-          board_state: boardWithTreasures,
-          remaining_digs: settings.digAttempts,
-          score: 0,
-          discoveries: [], // Keep for backward compatibility
-          sub_grid_hints: {}
-        })
-        .select()
-        .single()
-
-      if (boardError) throw boardError
+      const playerBoard = await createPlayerBoard({
+        mockPlayerId: state.mockPlayerId,
+        isMockPlayer: true,
+        sessionId: session.id,
+        boardState: boardWithTreasures,
+        remainingDigs: settings.digAttempts,
+        score: 0,
+        discoveries: [], // Keep for backward compatibility
+        subGridHints: {}
+      })
 
       setState(prev => ({
         ...prev,
@@ -470,10 +384,10 @@ export const useMultiplayerGame = () => {
         isLoading: false
       }))
 
-      // Start polling for updates
-      startPolling(session.id, state.mockPlayerId)
+      // Set up real-time listeners
+      setupRealtimeListeners(session.id, state.mockPlayerId)
 
-      return session.game_code
+      return session.gameCode
     } catch (error) {
       console.error('Error creating game session:', error)
       setState(prev => ({
@@ -501,30 +415,23 @@ export const useMultiplayerGame = () => {
       }
 
       // Find session by game code (case-insensitive)
-      const { data: session, error: sessionError } = await supabase
-        .from('game_sessions')
-        .select('*')
-        .ilike('game_code', gameCode.toUpperCase())
-        .single()
+      const session = await getGameSessionByCode(gameCode.toUpperCase())
 
-      if (sessionError) {
-        if (sessionError.code === 'PGRST116') {
-          setState(prev => ({
-            ...prev,
-            error: 'Game not found. Please check the game code.',
-            isLoading: false
-          }))
-          return false
-        }
-        throw sessionError
+      if (!session) {
+        setState(prev => ({
+          ...prev,
+          error: 'Game not found. Please check the game code.',
+          isLoading: false
+        }))
+        return false
       }
 
       return await joinGameSession(session.id)
     } catch (error) {
       console.error('Error joining game session by code:', error)
-      
+
       let errorMessage = 'Failed to join game session'
-      
+
       if (error instanceof Error) {
         errorMessage = error.message
       } else if (error && typeof error === 'object' && 'message' in error) {
@@ -532,7 +439,7 @@ export const useMultiplayerGame = () => {
       } else if (typeof error === 'string') {
         errorMessage = error
       }
-      
+
       setState(prev => ({
         ...prev,
         error: errorMessage,
@@ -545,13 +452,8 @@ export const useMultiplayerGame = () => {
   // Load other players in the session
   const loadOtherPlayers = useCallback(async (sessionId: string, currentMockPlayerId: string) => {
     try {
-      const { data: otherPlayers, error } = await supabase
-        .from('player_boards')
-        .select('*')
-        .eq('session_id', sessionId)
-        .neq('mock_player_id', currentMockPlayerId)
-
-      if (error) throw error
+      const allPlayers = await getPlayerBoardsBySession(sessionId)
+      const otherPlayers = allPlayers.filter(p => p.mockPlayerId !== currentMockPlayerId)
 
       setState(prev => ({
         ...prev,
@@ -562,92 +464,79 @@ export const useMultiplayerGame = () => {
     }
   }, [])
 
-  // Start polling for updates
-  const startPolling = useCallback((sessionId: string, currentMockPlayerId: string) => {
-    // Clear any existing interval
-    if (pollingInterval) {
-      clearInterval(pollingInterval)
-    }
+  // Setup real-time listeners (replaces polling)
+  const setupRealtimeListeners = useCallback((sessionId: string, currentMockPlayerId: string) => {
+    console.log('🔥 Setting up real-time Firebase listeners')
 
-    const interval = setInterval(async () => {
-      try {
-        // Check if game should be completed first
-        const gameCompleted = await checkGameCompletion(sessionId)
-        
-        // If game is completed, stop polling
-        if (gameCompleted) {
-          clearInterval(interval)
-          setPollingInterval(null)
-          return
-        }
+    // Clean up existing listeners
+    unsubscribers.forEach(unsub => unsub())
 
-        // Update session data (including central discoveries)
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('game_sessions')
-          .select('*')
-          .eq('id', sessionId)
-          .single()
+    const newUnsubscribers: (() => void)[] = []
 
-        if (sessionError) throw sessionError
+    // Listen to session changes
+    const sessionUnsub = subscribeToGameSession(sessionId, async (sessionData) => {
+      if (!sessionData) return
 
-        // Update other players
-        const { data: otherPlayers, error: playersError } = await supabase
-          .from('player_boards')
-          .select('*')
-          .eq('session_id', sessionId)
-          .neq('mock_player_id', currentMockPlayerId)
+      setState(prev => ({
+        ...prev,
+        session: sessionData
+      }))
 
-        if (playersError) throw playersError
-
-        // Update our own board state
-        const { data: ourBoard, error: boardError } = await supabase
-          .from('player_boards')
-          .select('*')
-          .eq('session_id', sessionId)
-          .eq('mock_player_id', currentMockPlayerId)
-          .single()
-
-        if (boardError) throw boardError
-
-        console.log('📊 Polling update - our board sub_grid_hints:', ourBoard.sub_grid_hints)
-
-        setState(prev => ({
-          ...prev,
-          session: sessionData,
-          otherPlayers: otherPlayers || [],
-          playerBoard: ourBoard
-        }))
-
-        // Check if game should be activated when new players join
-        await activateGameIfNeeded(sessionId)
-
-      } catch (error) {
-        console.error('Polling error:', error)
+      // Check for game completion when session updates
+      if (sessionData.status === 'completed' || sessionData.status === 'cancelled') {
+        await checkGameCompletion(sessionId)
       }
-    }, 1000) // Poll every 1 second for faster completion detection
 
-    setPollingInterval(interval)
-  }, [pollingInterval, checkGameCompletion, activateGameIfNeeded])
+      // Check if game should be activated when new players join
+      await activateGameIfNeeded(sessionId)
+    })
 
-  // Stop polling
-  const stopPolling = useCallback(() => {
-    if (pollingInterval) {
-      clearInterval(pollingInterval)
-      setPollingInterval(null)
-    }
-  }, [pollingInterval])
+    newUnsubscribers.push(sessionUnsub)
+
+    // Listen to all player boards
+    const playersUnsub = subscribeToPlayerBoards(sessionId, async (allBoards) => {
+      const ourBoard = allBoards.find(b => b.mockPlayerId === currentMockPlayerId)
+      const othersBoards = allBoards.filter(b => b.mockPlayerId !== currentMockPlayerId)
+
+      console.log('📊 Player boards update - our sub_grid_hints:', ourBoard?.subGridHints)
+
+      setState(prev => ({
+        ...prev,
+        playerBoard: ourBoard || prev.playerBoard,
+        otherPlayers: othersBoards
+      }))
+
+      // Check if game should be completed
+      const allPlayersFinished = allBoards.every(board => board.remainingDigs === 0)
+      if (allPlayersFinished && allBoards.length >= 1) {
+        console.log('🚨 All players finished detected through real-time update')
+        await checkGameCompletion(sessionId)
+      }
+    })
+
+    newUnsubscribers.push(playersUnsub)
+
+    setUnsubscribers(newUnsubscribers)
+  }, [checkGameCompletion, activateGameIfNeeded])
+
+  // Stop real-time listeners
+  const stopListeners = useCallback(() => {
+    console.log('🛑 Stopping real-time listeners')
+    unsubscribers.forEach(unsub => unsub())
+    setUnsubscribers([])
+  }, [unsubscribers])
 
   // Make a dig
   const dig = useCallback(async (position: Position) => {
     if (!state.playerBoard || !state.session || state.gameCompleted) return
 
     const { row, col } = position
-    const currentBoard = state.playerBoard.board_state
+    const currentBoard = state.playerBoard.boardState
 
     // Validation checks
-    if (!currentBoard || !Array.isArray(currentBoard) || 
-        !currentBoard[row] || !Array.isArray(currentBoard[row]) || 
-        !currentBoard[row][col]) {
+    if (!currentBoard || !Array.isArray(currentBoard) ||
+      !currentBoard[row] || !Array.isArray(currentBoard[row]) ||
+      !currentBoard[row][col]) {
       setState(prev => ({
         ...prev,
         error: 'Invalid board state detected. Please refresh the game.'
@@ -658,7 +547,7 @@ export const useMultiplayerGame = () => {
     const square = currentBoard[row][col]
 
     // Check if already revealed or no digs remaining
-    if (square.isRevealed || state.playerBoard.remaining_digs <= 0) return
+    if (square.isRevealed || state.playerBoard.remainingDigs <= 0) return
 
     try {
       // Activate game on first move if still waiting
@@ -669,7 +558,7 @@ export const useMultiplayerGame = () => {
       newBoard[row][col].isRevealed = true
 
       let newScore = state.playerBoard.score
-      let newDigs = state.playerBoard.remaining_digs - 1
+      let newDigs = state.playerBoard.remainingDigs - 1
       let newDiscoveries = [...state.playerBoard.discoveries] // Keep for backward compatibility
 
       console.log(`🎯 Player ${state.mockPlayerId} making dig at (${row}, ${col})`)
@@ -678,10 +567,10 @@ export const useMultiplayerGame = () => {
       // Handle treasure discovery
       if (square.isTreasure) {
         console.log('💎 TREASURE FOUND!')
-        
+
         // Get current central discoveries to calculate discovery order
-        const currentAllDiscoveries = state.session.all_discoveries || []
-        
+        const currentAllDiscoveries = state.session.allDiscoveries || []
+
         // Check how many times this treasure has been discovered
         const treasureDiscoveries = currentAllDiscoveries.filter(
           (discovery: Discovery) => discovery.row === row && discovery.col === col
@@ -689,10 +578,10 @@ export const useMultiplayerGame = () => {
 
         const discoveryCount = treasureDiscoveries.length + 1
         const points = calculatePoints(discoveryCount)
-        
+
         newScore += points
         newDigs++ // Bonus dig for finding treasure
-        
+
         // Create new discovery for central log
         const newDiscovery: Discovery = {
           playerId: state.mockPlayerId,
@@ -711,7 +600,7 @@ export const useMultiplayerGame = () => {
           discoveryOrder: discoveryCount,
           timestamp: new Date().toISOString()
         }
-        
+
         newDiscoveries.push(legacyDiscovery)
 
         console.log('💎 New discovery:', newDiscovery)
@@ -719,28 +608,19 @@ export const useMultiplayerGame = () => {
 
         // Update central discoveries log in game session
         const updatedAllDiscoveries = [...currentAllDiscoveries, newDiscovery]
-        
-        const { error: sessionUpdateError } = await supabase
-          .from('game_sessions')
-          .update({
-            all_discoveries: updatedAllDiscoveries
-          })
-          .eq('id', state.session.id)
 
-        if (sessionUpdateError) {
-          console.error('Failed to update central discoveries:', sessionUpdateError)
-          throw sessionUpdateError
-        }
+        await updateGameSession(state.session.id, {
+          allDiscoveries: updatedAllDiscoveries
+        })
 
         console.log('✅ Central discoveries log updated')
 
         // Update hints for all players based on new central log
         console.log('🗺️ Updating hints for all players from central log...')
-        await updateAllPlayersHintsFromCentralLog(
-          supabase,
+        await updateAllPlayersHintsFromFirebase(
           state.session.id,
           updatedAllDiscoveries,
-          state.session.grid_size
+          state.session.gridSize
         )
       }
 
@@ -749,34 +629,20 @@ export const useMultiplayerGame = () => {
         ...prev,
         playerBoard: prev.playerBoard ? {
           ...prev.playerBoard,
-          board_state: newBoard,
-          remaining_digs: newDigs,
+          boardState: newBoard,
+          remainingDigs: newDigs,
           score: newScore,
           discoveries: newDiscoveries
         } : null
       }))
 
       // Update player board in database
-      const { error } = await supabase
-        .from('player_boards')
-        .update({
-          board_state: newBoard,
-          remaining_digs: newDigs,
-          score: newScore,
-          discoveries: newDiscoveries
-        })
-        .eq('id', state.playerBoard.id)
-
-      if (error) {
-        console.error('Database update failed:', error)
-        // Revert local state on database error
-        setState(prev => ({
-          ...prev,
-          playerBoard: state.playerBoard,
-          error: 'Failed to save move. Please try again.'
-        }))
-        throw error
-      }
+      await updatePlayerBoard(state.playerBoard.id, {
+        boardState: newBoard,
+        remainingDigs: newDigs,
+        score: newScore,
+        discoveries: newDiscoveries
+      })
 
       console.log('✅ Player board updated successfully')
 
@@ -791,16 +657,44 @@ export const useMultiplayerGame = () => {
       }
 
     } catch (error) {
+      console.error('Database update failed:', error)
+      // Revert local state on database error
       setState(prev => ({
         ...prev,
+        playerBoard: state.playerBoard,
         error: error instanceof Error ? error.message : 'Failed to make dig'
       }))
     }
   }, [state.playerBoard, state.session, state.gameCompleted, state.mockPlayerId, checkGameCompletion, activateGameOnFirstMove])
 
+  // Helper function to update hints for all players (Firebase version)
+  const updateAllPlayersHintsFromFirebase = async (
+    sessionId: string,
+    allDiscoveries: Discovery[],
+    gridSize: number
+  ) => {
+    try {
+      const allPlayers = await getPlayerBoardsBySession(sessionId)
+
+      for (const player of allPlayers) {
+        const hints = calculateSubGridHintsFromCentralLog(
+          allDiscoveries,
+          player.mockPlayerId || '',
+          gridSize
+        )
+
+        await updatePlayerBoard(player.id, {
+          subGridHints: hints
+        })
+      }
+    } catch (error) {
+      console.error('Error updating player hints:', error)
+    }
+  }
+
   // Reset game state
   const resetGame = useCallback(() => {
-    stopPolling()
+    stopListeners()
     setState({
       session: null,
       playerBoard: null,
@@ -811,14 +705,14 @@ export const useMultiplayerGame = () => {
       gameCompleted: false,
       finalResults: null
     })
-  }, [stopPolling])
+  }, [stopListeners])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopPolling()
+      stopListeners()
     }
-  }, [stopPolling])
+  }, [stopListeners])
 
   return {
     ...state,
