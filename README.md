@@ -130,12 +130,68 @@ The game features an innovative "heat map" system that provides strategic intell
 
 ## Getting Started
 
+### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn package manager
+- Supabase account and project (for multiplayer features)
+
+### Installation
+
 1. **Clone the repository**
-2. **Install dependencies**: `npm install`
-3. **Start development server**: `npm run dev`
-4. **Choose game mode**: Single player for practice, multiplayer for competition
-5. **Configure settings**: Adjust grid size and treasure count to your preference
-6. **Start hunting**: Begin your strategic treasure hunting adventure!
+   ```bash
+   git clone <repository-url>
+   cd relic-rush
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment variables**
+   Create a `.env` file in the project root with your Supabase credentials:
+   ```
+   VITE_SUPABASE_URL=your-supabase-project-url
+   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ```
+
+### Running the Application
+
+#### For Full Multiplayer Experience (Recommended)
+Run both the client and Socket.IO server together:
+```bash
+npm run start
+```
+This will start:
+- Frontend client on port 5173 (or next available port)
+- Socket.IO server on port 3001
+
+#### Development Mode (Client Only)
+For single-player or testing:
+```bash
+npm run dev
+```
+
+#### Server Only
+To run just the Socket.IO server:
+```bash
+npm run server
+```
+
+### Playing the Game
+
+1. **Choose game mode**: Single player for practice, multiplayer for competition
+2. **Configure settings**: Adjust grid size and treasure count to your preference
+3. **Join game lobby**: For multiplayer, use the Socket.IO-powered game lobby
+4. **Start hunting**: Begin your strategic treasure hunting adventure!
+
+### Troubleshooting
+
+If you encounter WebSocket connection errors:
+1. Ensure the Socket.IO server is running (use `npm run start`)
+2. Check that port 3001 is not blocked by firewall
+3. Use the built-in diagnostic tool in the app to test connections
+4. Check browser console for detailed error messages
 
 ## Contributing
 

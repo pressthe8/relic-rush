@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { AlertCircle, CheckCircle, RefreshCw, Database, Search, Shield, Network, Code } from 'lucide-react'
+import { io } from 'socket.io-client'
 
 interface TestResult {
   test: string
@@ -302,12 +303,153 @@ export const LobbySystemDiagnostic: React.FC = () => {
     }
   }
 
+  // Test 6: Socket.IO Server Connection
+  const testSocketConnection = async () => {
+    setCurrentStep('Testing Socket.IO server connection...')
+    addResult({
+      test: '6. Socket.IO Server',
+      status: 'pending',
+      message: 'Testing WebSocket server connection...'
+    })
+
+    return new Promise<boolean>((resolve) => {
+      try {
+        // Construct socket URL similar to useSocketLobby hook
+        let socketUrl: string
+
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          socketUrl = `http://${window.location.hostname}:3001`
+        } else if (window.location.hostname.includes('webcontainer-api.io')) {
+          const protocol = window.location.protocol
+          const hostname = window.location.hostname
+          const portMatch = hostname.match(/--(\d+)--/)
+          if (portMatch) {
+            const currentPort = portMatch[1]
+            socketUrl = `${protocol}//${hostname.replace(`--${currentPort}--`, '--3001--')}`
+          } else {
+            socketUrl = `${protocol}//${hostname.replace(/\.webcontainer/, '--3001.webcontainer')}`
+          }
+        } else {
+          socketUrl = `http://${window.location.hostname}:3001`
+        }
+
+        const testSocket = io(socketUrl, {
+          transports: ['polling', 'websocket'],
+          timeout: 10000,
+          forceNew: true,
+          path: '/socket.io/'
+        })
+
+        let connected = false
+
+        testSocket.on('connect', () => {
+          connected = true
+          updateResult('6. Socket.IO Server', {
+            status: 'success',
+            message: `Successfully connected to Socket.IO server at ${socketUrl}`,
+            details: { socketUrl, socketId: testSocket.id, transport: testSocket.io.engine.transport.name }
+          })
+          testSocket.close()
+          resolve(true)
+        })
+
+        testSocket.on('connect_error', (error) => {
+          updateResult('6. Socket.IO Server', {
+            status: 'error',
+            message: `Failed to connect: ${error.message}`,
+            details: { socketUrl, error: error.message, errorType: error.name }
+          })
+          testSocket.close()
+          resolve(false)
+        })
+
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          if (!connected) {
+            updateResult('6. Socket.IO Server', {
+              status: 'error',
+              message: 'Connection timeout - server may not be running',
+              details: { socketUrl, message: 'Please ensure the server is running with "npm run start"' }
+            })
+            testSocket.close()
+            resolve(false)
+          }
+        }, 10000)
+      } catch (error) {
+        updateResult('6. Socket.IO Server', {
+          status: 'error',
+          message: `Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          details: error
+        })
+        resolve(false)
+      }
+    })
+  }
+
+  // Test 7: Socket.IO Health Endpoint
+  const testSocketHealthEndpoint = async () => {
+    setCurrentStep('Testing Socket.IO health endpoint...')
+    addResult({
+      test: '7. Socket.IO Health Check',
+      status: 'pending',
+      message: 'Testing server health endpoint...'
+    })
+
+    try {
+      let healthUrl: string
+
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        healthUrl = `http://${window.location.hostname}:3001/health`
+      } else if (window.location.hostname.includes('webcontainer-api.io')) {
+        const protocol = window.location.protocol
+        const hostname = window.location.hostname
+        const portMatch = hostname.match(/--(\d+)--/)
+        if (portMatch) {
+          const currentPort = portMatch[1]
+          healthUrl = `${protocol}//${hostname.replace(`--${currentPort}--`, '--3001--')}/health`
+        } else {
+          healthUrl = `${protocol}//${hostname.replace(/\.webcontainer/, '--3001.webcontainer')}/health`
+        }
+      } else {
+        healthUrl = `http://${window.location.hostname}:3001/health`
+      }
+
+      const response = await fetch(healthUrl)
+
+      if (!response.ok) {
+        updateResult('7. Socket.IO Health Check', {
+          status: 'error',
+          message: `Health check failed: HTTP ${response.status}`,
+          details: { status: response.status, statusText: response.statusText, healthUrl }
+        })
+        return false
+      }
+
+      const healthData = await response.json()
+      updateResult('7. Socket.IO Health Check', {
+        status: 'success',
+        message: `Server is healthy. Current players: ${healthData.lobbyPlayers || 0}`,
+        details: { healthData, healthUrl }
+      })
+      return true
+    } catch (error) {
+      updateResult('7. Socket.IO Health Check', {
+        status: 'error',
+        message: `Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        details: { error, message: 'Server may not be running. Please run "npm run start"' }
+      })
+      return false
+    }
+  }
+
   const runSystematicInvestigation = async () => {
     setIsRunning(true)
     setResults([])
     setCurrentStep('Starting investigation...')
 
-    // Run tests in priority order to isolate the auth issue
+    // Run tests in priority order
+    await testSocketHealthEndpoint()
+    await testSocketConnection()
     await testDirectAPICall()
     await testSupabaseClientConfig()
     await testExactFailingQuery()

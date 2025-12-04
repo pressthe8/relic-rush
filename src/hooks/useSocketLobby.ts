@@ -44,27 +44,40 @@ export const useSocketLobby = () => {
   useEffect(() => {
     // Determine the correct socket URL based on environment
     let socketUrl: string
-    
+
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       // Local development
       socketUrl = `http://${window.location.hostname}:3001`
     } else if (window.location.hostname.includes('webcontainer-api.io')) {
-      // WebContainer environment - construct URL using current origin and replace port
-      const currentOrigin = window.location.origin
-      const frontendPort = window.location.port || '5173'
-      socketUrl = currentOrigin.replace(`--${frontendPort}--`, '--3001--')
+      // WebContainer environment - use window.location to construct proper URL
+      const protocol = window.location.protocol
+      const hostname = window.location.hostname
+
+      // Extract the base hostname pattern and construct server URL
+      // Format: protocol://hash--serverPort--hash.domain
+      // We need to replace the port part with 3001
+      const portMatch = hostname.match(/--(\d+)--/)
+      if (portMatch) {
+        const currentPort = portMatch[1]
+        socketUrl = `${protocol}//${hostname.replace(`--${currentPort}--`, '--3001--')}`
+      } else {
+        // Fallback: append port-style pattern
+        socketUrl = `${protocol}//${hostname.replace(/\.webcontainer/, '--3001.webcontainer')}`
+      }
     } else {
       // Fallback for other environments
       socketUrl = `http://${window.location.hostname}:3001`
     }
-    
+
     console.log('🔌 Connecting to Socket.IO server at:', socketUrl)
-    
+
     const newSocket = io(socketUrl, {
-      transports: ['websocket', 'polling'], // Try websocket first, fallback to polling
+      transports: ['polling', 'websocket'], // Try polling first in WebContainer
       timeout: 20000,
       forceNew: true,
-      path: '/socket.io/' // Explicitly define the Socket.IO path
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      path: '/socket.io/'
     })
     
     setSocket(newSocket)
@@ -83,10 +96,31 @@ export const useSocketLobby = () => {
 
     newSocket.on('connect_error', (error) => {
       console.error('🔌 Connection error:', error)
-      setLobbyState(prev => ({ 
-        ...prev, 
-        isConnected: false, 
-        error: `Connection failed: ${error.message}` 
+      console.error('🔌 Error details:', {
+        message: error.message,
+        type: error.name,
+        description: error.toString()
+      })
+      setLobbyState(prev => ({
+        ...prev,
+        isConnected: false,
+        error: `Connection failed: ${error.message}. Please ensure the server is running.`
+      }))
+    })
+
+    newSocket.on('error', (error) => {
+      console.error('🔌 Socket error:', error)
+    })
+
+    newSocket.on('reconnect_attempt', (attemptNumber) => {
+      console.log(`🔌 Reconnection attempt ${attemptNumber}`)
+    })
+
+    newSocket.on('reconnect_failed', () => {
+      console.error('🔌 Reconnection failed after all attempts')
+      setLobbyState(prev => ({
+        ...prev,
+        error: 'Failed to reconnect to server. Please refresh the page.'
       }))
     })
 

@@ -27,8 +27,13 @@ const io = new Server(server, {
     credentials: true
   },
   allowEIO3: true, // Allow Engine.IO v3 clients
-  transports: ['websocket', 'polling'], // Enable both transport methods
-  path: '/socket.io/' // Explicitly define the Socket.IO path
+  transports: ['polling', 'websocket'], // Polling first for WebContainer compatibility
+  path: '/socket.io/',
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  maxHttpBufferSize: 1e6,
+  allowUpgrades: true
 });
 
 // Validate environment variables
@@ -433,11 +438,16 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Socket.IO server running on port ${PORT}`);
   console.log(`🌐 CORS enabled for WebContainer environment`);
   console.log(`🔗 Server accessible at: http://localhost:${PORT}`);
+  console.log(`🔗 Health check available at: http://localhost:${PORT}/health`);
   console.log(`📊 Environment variables loaded:`, {
     supabaseUrl: process.env.VITE_SUPABASE_URL ? 'configured' : 'missing',
     supabaseKey: process.env.VITE_SUPABASE_ANON_KEY ? 'configured' : 'missing'
   });
+  console.log(`⚙️  Socket.IO config: transports=[polling, websocket], path=/socket.io/`);
   initializeLobby();
+}).on('error', (err) => {
+  console.error('❌ Server failed to start:', err);
+  process.exit(1);
 });
 
 // Graceful shutdown
