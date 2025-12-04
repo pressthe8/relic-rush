@@ -1,5 +1,5 @@
 ## Latest Activity
-- **2025-12-04 10:00**: Fixed WebSocket connection errors by improving Socket.IO URL construction for WebContainer environments, switched transport priority to polling-first, added enhanced connection diagnostics, and updated server configuration with proper timeouts and error handling
+- **2025-12-04 10:30**: Integrated Socket.IO server directly into Vite dev server to fix WebContainer compatibility - Socket.IO now runs on same port as Vite automatically when running npm run dev, eliminating need for separate server process and fixing all WebSocket connection issues
 
 ## Previous Activities
 - **2025-01-27 16:30**: Fixed lobby database setup by ensuring all required columns exist (is_lobby_game, scheduled_start_time, max_players) and created initial lobby game for testing

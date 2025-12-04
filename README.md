@@ -157,26 +157,16 @@ The game features an innovative "heat map" system that provides strategic intell
 
 ### Running the Application
 
-#### For Full Multiplayer Experience (Recommended)
-Run both the client and Socket.IO server together:
-```bash
-npm run start
-```
-This will start:
-- Frontend client on port 5173 (or next available port)
-- Socket.IO server on port 3001
-
-#### Development Mode (Client Only)
-For single-player or testing:
+Start the development server (includes both frontend and Socket.IO):
 ```bash
 npm run dev
 ```
 
-#### Server Only
-To run just the Socket.IO server:
-```bash
-npm run server
-```
+This will start:
+- Frontend client on port 5173 (or next available port)
+- Socket.IO server integrated with Vite (same port)
+
+The Socket.IO server is now automatically integrated with the Vite development server, so you only need to run one command to get the full multiplayer experience.
 
 ### Playing the Game
 
@@ -188,10 +178,10 @@ npm run server
 ### Troubleshooting
 
 If you encounter WebSocket connection errors:
-1. Ensure the Socket.IO server is running (use `npm run start`)
-2. Check that port 3001 is not blocked by firewall
+1. Restart the development server (`npm run dev`)
+2. Check browser console for detailed error messages
 3. Use the built-in diagnostic tool in the app to test connections
-4. Check browser console for detailed error messages
+4. Verify Supabase environment variables are correctly configured in `.env`
 
 ## Contributing
 

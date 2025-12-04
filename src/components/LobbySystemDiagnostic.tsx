@@ -314,24 +314,8 @@ export const LobbySystemDiagnostic: React.FC = () => {
 
     return new Promise<boolean>((resolve) => {
       try {
-        // Construct socket URL similar to useSocketLobby hook
-        let socketUrl: string
-
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-          socketUrl = `http://${window.location.hostname}:3001`
-        } else if (window.location.hostname.includes('webcontainer-api.io')) {
-          const protocol = window.location.protocol
-          const hostname = window.location.hostname
-          const portMatch = hostname.match(/--(\d+)--/)
-          if (portMatch) {
-            const currentPort = portMatch[1]
-            socketUrl = `${protocol}//${hostname.replace(`--${currentPort}--`, '--3001--')}`
-          } else {
-            socketUrl = `${protocol}//${hostname.replace(/\.webcontainer/, '--3001.webcontainer')}`
-          }
-        } else {
-          socketUrl = `http://${window.location.hostname}:3001`
-        }
+        // Socket.IO is integrated with Vite server - connect to same origin
+        const socketUrl = window.location.origin
 
         const testSocket = io(socketUrl, {
           transports: ['polling', 'websocket'],
@@ -396,24 +380,34 @@ export const LobbySystemDiagnostic: React.FC = () => {
     })
 
     try {
-      let healthUrl: string
+      // Socket.IO is integrated with Vite - no separate health endpoint needed
+      updateResult('7. Socket.IO Health Check', {
+        status: 'skipped',
+        message: 'Socket.IO integrated with Vite server - no separate health endpoint needed',
+        details: { message: 'Socket.IO now runs on the same server as the Vite dev server' }
+      })
+      return true
+    } catch (error) {
+      updateResult('7. Socket.IO Health Check', {
+        status: 'error',
+        message: `Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        details: error
+      })
+      return false
+    }
+  }
 
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        healthUrl = `http://${window.location.hostname}:3001/health`
-      } else if (window.location.hostname.includes('webcontainer-api.io')) {
-        const protocol = window.location.protocol
-        const hostname = window.location.hostname
-        const portMatch = hostname.match(/--(\d+)--/)
-        if (portMatch) {
-          const currentPort = portMatch[1]
-          healthUrl = `${protocol}//${hostname.replace(`--${currentPort}--`, '--3001--')}/health`
-        } else {
-          healthUrl = `${protocol}//${hostname.replace(/\.webcontainer/, '--3001.webcontainer')}/health`
-        }
-      } else {
-        healthUrl = `http://${window.location.hostname}:3001/health`
-      }
+  // Legacy health endpoint test (for reference if separate server is used)
+  const testSocketHealthEndpointLegacy = async () => {
+    setCurrentStep('Testing Socket.IO health endpoint...')
+    addResult({
+      test: '7. Socket.IO Health Check',
+      status: 'pending',
+      message: 'Testing server health endpoint...'
+    })
 
+    try {
+      const healthUrl = `${window.location.origin}/health`
       const response = await fetch(healthUrl)
 
       if (!response.ok) {

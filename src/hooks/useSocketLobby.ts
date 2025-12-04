@@ -42,32 +42,9 @@ export const useSocketLobby = () => {
 
   // Initialize socket connection for WebContainer
   useEffect(() => {
-    // Determine the correct socket URL based on environment
-    let socketUrl: string
-
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      // Local development
-      socketUrl = `http://${window.location.hostname}:3001`
-    } else if (window.location.hostname.includes('webcontainer-api.io')) {
-      // WebContainer environment - use window.location to construct proper URL
-      const protocol = window.location.protocol
-      const hostname = window.location.hostname
-
-      // Extract the base hostname pattern and construct server URL
-      // Format: protocol://hash--serverPort--hash.domain
-      // We need to replace the port part with 3001
-      const portMatch = hostname.match(/--(\d+)--/)
-      if (portMatch) {
-        const currentPort = portMatch[1]
-        socketUrl = `${protocol}//${hostname.replace(`--${currentPort}--`, '--3001--')}`
-      } else {
-        // Fallback: append port-style pattern
-        socketUrl = `${protocol}//${hostname.replace(/\.webcontainer/, '--3001.webcontainer')}`
-      }
-    } else {
-      // Fallback for other environments
-      socketUrl = `http://${window.location.hostname}:3001`
-    }
+    // Socket.IO is now integrated with the Vite dev server
+    // Connect to the same origin as the app
+    const socketUrl = window.location.origin
 
     console.log('🔌 Connecting to Socket.IO server at:', socketUrl)
 
