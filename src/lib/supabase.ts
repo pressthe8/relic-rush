@@ -3,7 +3,23 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Create Supabase client with explicit anonymous session handling
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // Disable automatic session refresh to avoid auth errors
+    autoRefreshToken: false,
+    // Don't persist session for anonymous users
+    persistSession: false,
+    // Disable auth detection to prevent session missing errors
+    detectSessionInUrl: false
+  },
+  // Ensure we can make requests without authentication
+  global: {
+    headers: {
+      'X-Client-Info': 'relic-rush-game'
+    }
+  }
+})
 
 // Generate a mock player ID for testing
 export const generateMockPlayerId = (): string => {

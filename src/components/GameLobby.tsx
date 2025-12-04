@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { supabase, generateMockPlayerId } from '../lib/supabase'
 import { LobbyGameCard } from './LobbyGameCard'
 import { JoinedGameStatus } from './JoinedGameStatus'
-import { Users, RefreshCw, AlertCircle } from 'lucide-react'
+import { Users, RefreshCw, AlertCircle, Database, Bug, Clock } from 'lucide-react'
 
 interface LobbyGame {
   id: string
@@ -12,6 +12,7 @@ interface LobbyGame {
   status: 'scheduled'
   player_count: number
   joined_players: string[]
+  treasure_positions?: any[]
 }
 
 interface LobbyState {
@@ -22,6 +23,8 @@ interface LobbyState {
   isLoading: boolean
   error: string | null
   playerMockId: string
+  debugInfo: any[]
+  lastGameId: string | null // Track if game changed
 }
 
 interface GameLobbyProps {
@@ -36,15 +39,39 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
     isLeaving: false,
     isLoading: true,
     error: null,
-    playerMockId: generateMockPlayerId()
+    playerMockId: generateMockPlayerId(),
+    debugInfo: [],
+    lastGameId: null
   })
 
-  // Load current lobby game
+  const addDebugInfo = (info: string, data?: any) => {
+    console.log(`🎮 GameLobby: ${info}`, data)
+    setLobbyState(prev => ({
+      ...prev,
+      debugInfo: [...prev.debugInfo.slice(-4), { time: new Date().toLocaleTimeString(), info, data }]
+    }))
+  }
+
+  // Load current lobby game with comprehensive error handling
   const loadLobbyGame = useCallback(async () => {
     try {
+      addDebugInfo('Starting loadLobbyGame...')
       setLobbyState(prev => ({ ...prev, isLoading: true, error: null }))
 
-      // Get current scheduled lobby game
+      // Step 1: Ensure lobby game is available (this will process scheduled games)
+      addDebugInfo('Ensuring lobby game availability...')
+      const { data: availabilityResult, error: availabilityError } = await supabase
+        .rpc('ensure_lobby_game_available')
+
+      if (availabilityError) {
+        addDebugInfo('Availability check failed', availabilityError)
+        throw new Error(`Failed to ensure lobby availability: ${availabilityError.message}`)
+      }
+
+      addDebugInfo('Availability check result', availabilityResult)
+
+      // Step 2: Get current scheduled lobby game
+      addDebugInfo('Querying for scheduled lobby games...')
       const { data: lobbyGame, error: gameError } = await supabase
         .from('game_sessions')
         .select('*')
@@ -54,26 +81,42 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         .limit(1)
         .maybeSingle()
 
-      if (gameError) throw gameError
-
-      if (!lobbyGame) {
-        // No lobby game exists, trigger creation
-        console.log('No lobby game found, creating one...')
-        const { error: createError } = await supabase.rpc('ensure_lobby_game_available')
-        if (createError) throw createError
-        
-        // Retry loading after creation
-        setTimeout(loadLobbyGame, 1000)
-        return
+      if (gameError) {
+        addDebugInfo('Lobby game query failed', gameError)
+        throw new Error(`Failed to query lobby games: ${gameError.message}`)
       }
 
-      // Get players in this game
+      addDebugInfo('Lobby game query result', { found: !!lobbyGame, game: lobbyGame })
+
+      if (!lobbyGame) {
+        addDebugInfo('No lobby game found after availability check - this is unexpected')
+        throw new Error('No lobby game available after ensuring availability')
+      }
+
+      // Step 3: Check if this is a different game than before
+      const gameChanged = lobbyState.lastGameId && lobbyState.lastGameId !== lobbyGame.id
+      if (gameChanged) {
+        addDebugInfo('Game changed detected', { 
+          oldGameId: lobbyState.lastGameId, 
+          newGameId: lobbyGame.id 
+        })
+        // Reset join status if game changed
+        setLobbyState(prev => ({ ...prev, hasJoined: false }))
+      }
+
+      // Step 4: Get players in this game
+      addDebugInfo('Getting players for lobby game...', { gameId: lobbyGame.id })
       const { data: players, error: playersError } = await supabase
         .from('player_boards')
         .select('mock_player_id')
         .eq('session_id', lobbyGame.id)
 
-      if (playersError) throw playersError
+      if (playersError) {
+        addDebugInfo('Failed to get players', playersError)
+        throw new Error(`Failed to get players: ${playersError.message}`)
+      }
+
+      addDebugInfo('Players query result', { players })
 
       const joinedPlayers = players?.map(p => p.mock_player_id) || []
       const hasJoined = joinedPlayers.includes(lobbyState.playerMockId)
@@ -85,31 +128,40 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         max_players: lobbyGame.max_players,
         status: lobbyGame.status,
         player_count: joinedPlayers.length,
-        joined_players: joinedPlayers
+        joined_players: joinedPlayers,
+        treasure_positions: lobbyGame.treasure_positions
       }
+
+      addDebugInfo('Successfully loaded lobby game', { currentGame, hasJoined, gameChanged })
 
       setLobbyState(prev => ({
         ...prev,
         currentGame,
-        hasJoined,
-        isLoading: false
+        hasJoined: gameChanged ? false : hasJoined, // Reset if game changed
+        isLoading: false,
+        error: null,
+        lastGameId: lobbyGame.id
       }))
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load lobby game'
+      addDebugInfo('loadLobbyGame failed with error', { error, errorMessage })
+      
       console.error('Failed to load lobby game:', error)
       setLobbyState(prev => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Failed to load lobby game',
+        error: errorMessage,
         isLoading: false
       }))
     }
-  }, [lobbyState.playerMockId])
+  }, [lobbyState.playerMockId, lobbyState.lastGameId])
 
   // Join current lobby game
   const handleJoinGame = async () => {
     if (!lobbyState.currentGame) return
 
     setLobbyState(prev => ({ ...prev, isJoining: true, error: null }))
+    addDebugInfo('Attempting to join game...', { gameId: lobbyState.currentGame?.id })
 
     try {
       // Create initial board state for 6x6 grid
@@ -129,6 +181,8 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         }
       })
 
+      addDebugInfo('Created initial board state', { boardSize: initialBoard.length, treasureCount: treasurePositions.length })
+
       // Add player to game
       const { error } = await supabase
         .from('player_boards')
@@ -143,7 +197,12 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
           sub_grid_hints: {}
         })
 
-      if (error) throw error
+      if (error) {
+        addDebugInfo('Failed to join game', error)
+        throw error
+      }
+
+      addDebugInfo('Successfully joined game')
 
       setLobbyState(prev => ({
         ...prev,
@@ -155,10 +214,13 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
       setTimeout(loadLobbyGame, 500)
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to join game'
+      addDebugInfo('Join game failed', { error, errorMessage })
+      
       console.error('Failed to join game:', error)
       setLobbyState(prev => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Failed to join game',
+        error: errorMessage,
         isJoining: false
       }))
     }
@@ -169,6 +231,7 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
     if (!lobbyState.currentGame) return
 
     setLobbyState(prev => ({ ...prev, isLeaving: true, error: null }))
+    addDebugInfo('Attempting to leave game...', { gameId: lobbyState.currentGame?.id })
 
     try {
       const { error } = await supabase.rpc('leave_lobby_game', {
@@ -176,7 +239,12 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         p_mock_player_id: lobbyState.playerMockId
       })
 
-      if (error) throw error
+      if (error) {
+        addDebugInfo('Failed to leave game', error)
+        throw error
+      }
+
+      addDebugInfo('Successfully left game')
 
       setLobbyState(prev => ({
         ...prev,
@@ -188,10 +256,13 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
       setTimeout(loadLobbyGame, 500)
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to leave game'
+      addDebugInfo('Leave game failed', { error, errorMessage })
+      
       console.error('Failed to leave game:', error)
       setLobbyState(prev => ({
         ...prev,
-        error: error instanceof Error ? error.message : 'Failed to leave game',
+        error: errorMessage,
         isLeaving: false
       }))
     }
@@ -208,39 +279,92 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         .eq('id', lobbyState.currentGame.id)
         .single()
 
-      if (error) throw error
+      if (error) {
+        addDebugInfo('Game status check failed', error)
+        throw error
+      }
+
+      addDebugInfo('Game status check result', gameStatus)
 
       if (gameStatus.status === 'active' && lobbyState.hasJoined) {
-        // Game has started and we're in it - redirect to game
+        addDebugInfo('Game started, redirecting...', { gameId: lobbyState.currentGame.id })
         onGameStart(lobbyState.currentGame.id)
       } else if (gameStatus.status === 'cancelled') {
-        // Game was cancelled - reload lobby
+        addDebugInfo('Game was cancelled, reloading lobby...')
+        // Reset join status and reload
+        setLobbyState(prev => ({ ...prev, hasJoined: false, lastGameId: null }))
         loadLobbyGame()
       }
     } catch (error) {
+      addDebugInfo('Game status check error', error)
       console.error('Failed to check game status:', error)
     }
   }, [lobbyState.currentGame, lobbyState.hasJoined, onGameStart, loadLobbyGame])
 
-  // Set up polling for game updates
+  // Set up polling for game updates with error handling
   useEffect(() => {
+    addDebugInfo('Setting up polling and initial load...')
+    
+    // Initial load
     loadLobbyGame()
 
+    // Set up polling interval
     const interval = setInterval(() => {
-      loadLobbyGame()
-      checkGameStatus()
-    }, 2000) // Poll every 2 seconds
+      if (!lobbyState.isLoading) {
+        loadLobbyGame()
+        checkGameStatus()
+      }
+    }, 3000) // Poll every 3 seconds
 
-    return () => clearInterval(interval)
-  }, [loadLobbyGame, checkGameStatus])
+    return () => {
+      addDebugInfo('Cleaning up polling interval')
+      clearInterval(interval)
+    }
+  }, []) // Only run once on mount
 
-  if (lobbyState.isLoading) {
+  // Separate effect for status checking
+  useEffect(() => {
+    if (lobbyState.currentGame && !lobbyState.isLoading) {
+      const statusInterval = setInterval(checkGameStatus, 2000)
+      return () => clearInterval(statusInterval)
+    }
+  }, [lobbyState.currentGame, lobbyState.isLoading, checkGameStatus])
+
+  // Show loading state with debug info
+  if (lobbyState.isLoading && !lobbyState.currentGame) {
     return (
       <div className="w-full max-w-2xl space-y-6">
         <div className="text-center">
           <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Loading Game Lobby...</h2>
           <p className="text-gray-600">Finding available games for you to join</p>
+        </div>
+
+        {/* Debug Information */}
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+          <div className="flex items-center gap-2 mb-2">
+            <Bug className="w-4 h-4 text-blue-600" />
+            <h3 className="font-semibold text-blue-800">Debug Information</h3>
+          </div>
+          <div className="space-y-1 text-xs text-blue-700">
+            {lobbyState.debugInfo.slice(-5).map((debug, index) => (
+              <div key={index} className="flex gap-2">
+                <span className="text-blue-500">{debug.time}</span>
+                <span>{debug.info}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Manual retry button */}
+        <div className="text-center">
+          <button
+            onClick={loadLobbyGame}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry Loading
+          </button>
         </div>
       </div>
     )
@@ -265,6 +389,24 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
           <div className="flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-red-600" />
             <p className="text-red-800 text-sm">{lobbyState.error}</p>
+          </div>
+          <button
+            onClick={loadLobbyGame}
+            className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      {/* Game Changed Notice */}
+      {lobbyState.lastGameId && lobbyState.currentGame && lobbyState.lastGameId !== lobbyState.currentGame.id && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-amber-600" />
+            <p className="text-amber-800 text-sm">
+              <strong>New game available!</strong> The previous game was processed and a fresh lobby game has been created.
+            </p>
           </div>
         </div>
       )}
@@ -300,15 +442,38 @@ export const GameLobby: React.FC<GameLobbyProps> = ({ onGameStart }) => {
         </button>
       </div>
 
+      {/* Debug Panel (only show if there are errors or debug info) */}
+      {(lobbyState.debugInfo.length > 0 || lobbyState.error) && (
+        <details className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+          <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800 flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            Debug Information ({lobbyState.debugInfo.length} events)
+          </summary>
+          <div className="mt-2 space-y-1 text-xs text-gray-600 max-h-40 overflow-y-auto">
+            {lobbyState.debugInfo.map((debug, index) => (
+              <div key={index} className="flex gap-2 border-b border-gray-200 pb-1">
+                <span className="text-gray-400 w-16">{debug.time}</span>
+                <span className="flex-1">{debug.info}</span>
+                {debug.data && (
+                  <span className="text-gray-500 text-xs">
+                    {typeof debug.data === 'object' ? JSON.stringify(debug.data).substring(0, 50) + '...' : debug.data}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
       {/* Info Section */}
       <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
         <h3 className="font-semibold text-blue-800 mb-2">How Lobby Games Work</h3>
         <ul className="text-sm text-blue-700 space-y-1">
           <li>• Games start automatically when 6 players join OR after 10 minutes</li>
-          <li>• Minimum 2 players required, otherwise game is cancelled</li>
+          <li>• Minimum 2 players required, otherwise game is cancelled and new one created</li>
           <li>• All lobby games use 6x6 grid with 5 treasures and 10 dig attempts</li>
           <li>• You can leave before the game starts if you change your mind</li>
-          <li>• New games are created automatically when current ones start</li>
+          <li>• New games are created automatically when current ones start or are cancelled</li>
         </ul>
       </div>
     </div>

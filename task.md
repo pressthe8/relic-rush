@@ -1,7 +1,8 @@
 ## Latest Activity
-- **2025-01-27 16:30**: Fixed lobby database setup by ensuring all required columns exist (is_lobby_game, scheduled_start_time, max_players) and created initial lobby game for testing
+- **2025-12-04 10:30**: Integrated Socket.IO server directly into Vite dev server to fix WebContainer compatibility - Socket.IO now runs on same port as Vite automatically when running npm run dev, eliminating need for separate server process and fixing all WebSocket connection issues
 
 ## Previous Activities
+- **2025-01-27 16:30**: Fixed lobby database setup by ensuring all required columns exist (is_lobby_game, scheduled_start_time, max_players) and created initial lobby game for testing
 - **2025-01-27 16:25**: Implemented complete lobby system UI with GameLobby, LobbyGameCard, JoinedGameStatus, and CountdownTimer components for automated multiplayer game scheduling
 - **2025-01-27 16:05**: Fixed lobby database migration by resolving ambiguous column reference error in create_lobby_game() function using table alias and renamed variable
 - **2025-01-27 16:00**: Implemented Phase 1 lobby database schema with scheduled games, max players, lobby functions, and automatic game creation/processing

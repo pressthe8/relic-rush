@@ -130,12 +130,58 @@ The game features an innovative "heat map" system that provides strategic intell
 
 ## Getting Started
 
+### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn package manager
+- Supabase account and project (for multiplayer features)
+
+### Installation
+
 1. **Clone the repository**
-2. **Install dependencies**: `npm install`
-3. **Start development server**: `npm run dev`
-4. **Choose game mode**: Single player for practice, multiplayer for competition
-5. **Configure settings**: Adjust grid size and treasure count to your preference
-6. **Start hunting**: Begin your strategic treasure hunting adventure!
+   ```bash
+   git clone <repository-url>
+   cd relic-rush
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment variables**
+   Create a `.env` file in the project root with your Supabase credentials:
+   ```
+   VITE_SUPABASE_URL=your-supabase-project-url
+   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ```
+
+### Running the Application
+
+Start the development server (includes both frontend and Socket.IO):
+```bash
+npm run dev
+```
+
+This will start:
+- Frontend client on port 5173 (or next available port)
+- Socket.IO server integrated with Vite (same port)
+
+The Socket.IO server is now automatically integrated with the Vite development server, so you only need to run one command to get the full multiplayer experience.
+
+### Playing the Game
+
+1. **Choose game mode**: Single player for practice, multiplayer for competition
+2. **Configure settings**: Adjust grid size and treasure count to your preference
+3. **Join game lobby**: For multiplayer, use the Socket.IO-powered game lobby
+4. **Start hunting**: Begin your strategic treasure hunting adventure!
+
+### Troubleshooting
+
+If you encounter WebSocket connection errors:
+1. Restart the development server (`npm run dev`)
+2. Check browser console for detailed error messages
+3. Use the built-in diagnostic tool in the app to test connections
+4. Verify Supabase environment variables are correctly configured in `.env`
 
 ## Contributing
 

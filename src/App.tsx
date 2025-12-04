@@ -4,14 +4,16 @@ import { MultiplayerSetup } from './components/MultiplayerSetup'
 import { MultiplayerBoard } from './components/MultiplayerBoard'
 import { GameFinale } from './components/GameFinale'
 import { GameIntroduction } from './components/GameIntroduction'
-import { GameLobby } from './components/GameLobby'
+import { SocketGameLobby } from './components/SocketGameLobby'
+import { SupabaseConnectionTest } from './components/SupabaseConnectionTest'
+import { LobbySystemDiagnostic } from './components/LobbySystemDiagnostic'
 import { Gem, ArrowLeft } from 'lucide-react'
 import { GameSettings, GridSize } from './types'
 
-type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game'
+type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game' | 'connection-test' | 'lobby-diagnostic'
 
 function App() {
-  const [appMode, setAppMode] = useState<AppMode>('introduction')
+  const [appMode, setAppMode] = useState<AppMode>('lobby') // Switch to lobby as default
   const [settings, setSettings] = useState<GameSettings>({
     gridSize: 9 as GridSize,
     treasureCount: 5,
@@ -96,10 +98,51 @@ function App() {
           </div>
         )}
 
-        {/* Debug Mode Indicator */}
-        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-          Mode: {appMode} | Private Games: {ENABLE_PRIVATE_GAMES ? 'Enabled' : 'Disabled'}
+        {/* Mode Navigation */}
+        <div className="flex flex-wrap gap-2 text-xs">
+          <button
+            onClick={() => setAppMode('lobby')}
+            className={`px-3 py-1 rounded ${appMode === 'lobby' ? 'bg-emerald-600 text-white' : 'bg-gray-200'}`}
+          >
+            🎮 Socket Lobby
+          </button>
+          <button
+            onClick={() => setAppMode('introduction')}
+            className={`px-3 py-1 rounded ${appMode === 'introduction' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
+          >
+            📖 Introduction
+          </button>
+          <button
+            onClick={() => setAppMode('lobby-diagnostic')}
+            className={`px-3 py-1 rounded ${appMode === 'lobby-diagnostic' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
+          >
+            🔍 Diagnostics
+          </button>
+          <button
+            onClick={() => setAppMode('connection-test')}
+            className={`px-3 py-1 rounded ${appMode === 'connection-test' ? 'bg-orange-600 text-white' : 'bg-gray-200'}`}
+          >
+            🔧 Connection Test
+          </button>
+          {ENABLE_PRIVATE_GAMES && (
+            <button
+              onClick={() => setAppMode('private-setup')}
+              className={`px-3 py-1 rounded ${appMode === 'private-setup' ? 'bg-amber-600 text-white' : 'bg-gray-200'}`}
+            >
+              🔒 Private Games
+            </button>
+          )}
         </div>
+
+        {/* Lobby System Diagnostic */}
+        {appMode === 'lobby-diagnostic' && (
+          <LobbySystemDiagnostic />
+        )}
+
+        {/* Connection Test Mode */}
+        {appMode === 'connection-test' && (
+          <SupabaseConnectionTest />
+        )}
 
         {/* Introduction Screen */}
         {appMode === 'introduction' && (
@@ -109,7 +152,7 @@ function App() {
           />
         )}
 
-        {/* Game Lobby */}
+        {/* Socket.IO Game Lobby */}
         {appMode === 'lobby' && (
           <>
             <button
@@ -120,7 +163,7 @@ function App() {
               Back to Introduction
             </button>
 
-            <GameLobby onGameStart={handleGameStart} />
+            <SocketGameLobby onGameStart={handleGameStart} />
           </>
         )}
 
@@ -182,14 +225,14 @@ function App() {
         )}
 
         {/* Fallback for Unknown State */}
-        {!['introduction', 'lobby', 'private-setup', 'game'].includes(appMode) && (
+        {!['introduction', 'lobby', 'private-setup', 'game', 'connection-test', 'lobby-diagnostic'].includes(appMode) && (
           <div className="text-center">
             <p className="text-red-600">Unknown app state: {appMode}</p>
             <button
-              onClick={() => setAppMode('introduction')}
+              onClick={() => setAppMode('lobby')}
               className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg"
             >
-              Return to Introduction
+              Return to Lobby
             </button>
           </div>
         )}
