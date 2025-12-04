@@ -4,11 +4,11 @@ import { generateMockPlayerId } from '../lib/firebase'
 
 interface LobbyGame {
   id: string
-  game_code: string
-  scheduled_start_time: string
-  max_players: number
+  gameCode: string
+  scheduledStartTime: string
+  maxPlayers: number
   status: 'scheduled'
-  treasure_positions: any[]
+  treasurePositions: any[]
 }
 
 interface LobbyState {
@@ -42,9 +42,8 @@ export const useSocketLobby = () => {
 
   // Initialize socket connection for WebContainer
   useEffect(() => {
-    // Socket.IO is now integrated with the Vite dev server
-    // Connect to the same origin as the app
-    const socketUrl = window.location.origin
+    // Socket.IO server runs on port 3001
+    const socketUrl = 'http://localhost:3001'
 
     console.log('🔌 Connecting to Socket.IO server at:', socketUrl)
 

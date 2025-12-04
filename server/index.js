@@ -337,7 +337,7 @@ io.on('connection', (socket) => {
         mockPlayerId: mockPlayerId,
         isMockPlayer: true,
         sessionId: lobbyState.currentGame.id,
-        boardState: initialBoard,
+        boardState: JSON.stringify(initialBoard), // Convert to JSON string for Firestore
         remainingDigs: 10,
         score: 0,
         discoveries: [],

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   generateMockPlayerId,
   generateGameCode,
@@ -44,8 +44,8 @@ export const useMultiplayerGame = () => {
     finalResults: null
   })
 
-  // Unsubscribe functions
-  const [unsubscribers, setUnsubscribers] = useState<(() => void)[]>([])
+  // Use ref instead of state to avoid triggering re-renders
+  const unsubscribersRef = useRef<(() => void)[]>([])
 
   // Check if game should be completed
   const checkGameCompletion = useCallback(async (sessionId: string) => {
@@ -469,7 +469,7 @@ export const useMultiplayerGame = () => {
     console.log('🔥 Setting up real-time Firebase listeners')
 
     // Clean up existing listeners
-    unsubscribers.forEach(unsub => unsub())
+    unsubscribersRef.current.forEach(unsub => unsub())
 
     const newUnsubscribers: (() => void)[] = []
 
@@ -516,15 +516,15 @@ export const useMultiplayerGame = () => {
 
     newUnsubscribers.push(playersUnsub)
 
-    setUnsubscribers(newUnsubscribers)
+    unsubscribersRef.current = newUnsubscribers
   }, [checkGameCompletion, activateGameIfNeeded])
 
   // Stop real-time listeners
   const stopListeners = useCallback(() => {
     console.log('🛑 Stopping real-time listeners')
-    unsubscribers.forEach(unsub => unsub())
-    setUnsubscribers([])
-  }, [unsubscribers])
+    unsubscribersRef.current.forEach(unsub => unsub())
+    unsubscribersRef.current = []
+  }, [])
 
   // Make a dig
   const dig = useCallback(async (position: Position) => {

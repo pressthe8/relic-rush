@@ -52,8 +52,8 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
     )
   }
 
-  const playersNeeded = currentGame.max_players - playerCount
-  const isFull = playerCount >= currentGame.max_players
+  const playersNeeded = currentGame.maxPlayers - playerCount
+  const isFull = playerCount >= currentGame.maxPlayers
 
   return (
     <div className="w-full max-w-2xl space-y-6">
@@ -91,14 +91,14 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
               <h3 className="text-2xl font-bold text-emerald-800">You're In!</h3>
             </div>
             <p className="text-emerald-700">
-              Successfully joined game <span className="font-mono font-bold">{currentGame.game_code}</span>
+              Successfully joined game <span className="font-mono font-bold">{currentGame.gameCode}</span>
             </p>
           </div>
 
           {/* Countdown Timer */}
           <div className="text-center mb-6">
             <CountdownTimer
-              targetTime={currentGame.scheduled_start_time}
+              targetTime={currentGame.scheduledStartTime}
               onComplete={() => window.location.reload()}
               variant="success"
             />
@@ -115,7 +115,7 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
               <div className="space-y-2">
                 <p className="text-emerald-700 font-medium">🎉 Game is full! Starting soon...</p>
                 <p className="text-sm text-emerald-600">
-                  All {currentGame.max_players} players have joined. The game will begin shortly!
+                  All {currentGame.maxPlayers} players have joined. The game will begin shortly!
                 </p>
               </div>
             ) : (
@@ -133,12 +133,12 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
             <div className="mt-4">
               <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
                 <span>Players Joined</span>
-                <span>{playerCount}/{currentGame.max_players}</span>
+                <span>{playerCount}/{currentGame.maxPlayers}</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
                   className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(playerCount / currentGame.max_players) * 100}%` }}
+                  style={{ width: `${(playerCount / currentGame.maxPlayers) * 100}%` }}
                 ></div>
               </div>
             </div>
@@ -170,10 +170,10 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-bold">Next Scheduled Game</h3>
-                <p className="text-emerald-100">Game Code: <span className="font-mono font-bold">{currentGame.game_code}</span></p>
+                <p className="text-emerald-100">Game Code: <span className="font-mono font-bold">{currentGame.gameCode}</span></p>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold">{playerCount}/{currentGame.max_players}</div>
+                <div className="text-2xl font-bold">{playerCount}/{currentGame.maxPlayers}</div>
                 <div className="text-emerald-100 text-sm">Players</div>
               </div>
             </div>
@@ -184,7 +184,7 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
             {/* Countdown Timer */}
             <div className="text-center">
               <CountdownTimer
-                targetTime={currentGame.scheduled_start_time}
+                targetTime={currentGame.scheduledStartTime}
                 onComplete={() => window.location.reload()}
               />
             </div>
@@ -214,7 +214,7 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
                 <span className="font-medium text-gray-800">Player Status</span>
                 <Users className="w-5 h-5 text-gray-600" />
               </div>
-              
+
               {playerCount === 0 ? (
                 <p className="text-gray-600 text-sm">No players joined yet. Be the first!</p>
               ) : isFull ? (
@@ -229,12 +229,12 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
               <div className="mt-3">
                 <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                   <span>Players Online</span>
-                  <span>{playerCount}/{currentGame.max_players}</span>
+                  <span>{playerCount}/{currentGame.maxPlayers}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-1">
                   <div
                     className="bg-emerald-600 h-1 rounded-full transition-all duration-300"
-                    style={{ width: `${(playerCount / currentGame.max_players) * 100}%` }}
+                    style={{ width: `${(playerCount / currentGame.maxPlayers) * 100}%` }}
                   ></div>
                 </div>
               </div>
@@ -261,7 +261,7 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
               ) : isFull ? (
                 'Game Full'
               ) : (
-                `Join Game (${playerCount}/${currentGame.max_players})`
+                `Join Game (${playerCount}/${currentGame.maxPlayers})`
               )}
             </button>
           </div>
