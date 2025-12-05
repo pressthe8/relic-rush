@@ -45,19 +45,19 @@ export const GameFinale: React.FC<GameFinaleProps> = ({
 
   const formatGameTime = (startTime?: string, endTime?: string): string => {
     if (!startTime || !endTime) return 'Unknown'
-    
+
     const start = new Date(startTime)
     const end = new Date(endTime)
     const durationMs = end.getTime() - start.getTime()
-    
+
     // Convert to seconds
     const totalSeconds = Math.floor(durationMs / 1000)
-    
+
     // Calculate hours, minutes, seconds
     const hours = Math.floor(totalSeconds / 3600)
     const minutes = Math.floor((totalSeconds % 3600) / 60)
     const seconds = totalSeconds % 60
-    
+
     // Format based on duration
     if (hours > 0) {
       return `${hours}h ${minutes}m ${seconds}s`
@@ -81,7 +81,7 @@ export const GameFinale: React.FC<GameFinaleProps> = ({
         <h1 className="text-4xl font-bold text-gray-800">Game Complete!</h1>
         {hasMultiplePlayers ? (
           <p className="text-xl text-gray-600">
-            🎉 Congratulations to <span className="font-bold text-yellow-600">{winner.mock_player_id}</span> for winning!
+            🎉 Congratulations to <span className="font-bold text-yellow-600">{winner.mockPlayerId}</span> for winning!
           </p>
         ) : (
           <p className="text-xl text-gray-600">
@@ -95,12 +95,12 @@ export const GameFinale: React.FC<GameFinaleProps> = ({
         <div className="bg-gradient-to-r from-emerald-600 to-amber-600 text-white p-4">
           <h2 className="text-xl font-bold text-center">Final Scores</h2>
         </div>
-        
+
         <div className="p-6 space-y-3">
           {finalResults.map((player, index) => {
             const position = index + 1
             const isWinner = position === 1 && hasMultiplePlayers
-            
+
             return (
               <div
                 key={player.id}
@@ -113,16 +113,16 @@ export const GameFinale: React.FC<GameFinaleProps> = ({
                 <div className="flex-shrink-0">
                   {getPositionIcon(position)}
                 </div>
-                
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-lg">
-                      {player.mock_player_id?.replace('mock_player_', 'Player ')}
+                      {player.mockPlayerId?.replace('mock_player_', 'Player ')}
                     </span>
                     {isWinner && <span className="text-sm font-medium">👑 WINNER</span>}
                   </div>
                 </div>
-                
+
                 <div className="text-right">
                   <div className="text-2xl font-bold">{player.score}</div>
                   <div className="text-sm opacity-75">
@@ -173,7 +173,7 @@ export const GameFinale: React.FC<GameFinaleProps> = ({
           <RotateCcw className="w-5 h-5" />
           Play Again
         </button>
-        
+
         <button
           onClick={onBackToMenu}
           className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 transition-colors"
