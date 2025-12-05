@@ -73,7 +73,16 @@ export const ensureAuth = async (): Promise<void> => {
 
 // Utility functions (migrated from supabase.ts)
 export const generateMockPlayerId = (): string => {
-  return `mock_player_${Math.random().toString(36).substr(2, 8)}`;
+  const STORAGE_KEY = 'relic_rush_player_id';
+  const existingId = localStorage.getItem(STORAGE_KEY);
+
+  if (existingId) {
+    return existingId;
+  }
+
+  const newId = `mock_player_${Math.random().toString(36).substr(2, 8)}`;
+  localStorage.setItem(STORAGE_KEY, newId);
+  return newId;
 };
 
 export const generateGameCode = (): string => {
@@ -118,7 +127,7 @@ export interface GameSession {
   startTime: string;
   endTime?: string;
   lastUpdated: string;
-  status: 'waiting' | 'active' | 'completed' | 'cancelled';
+  status: 'waiting' | 'scheduled' | 'active' | 'completed' | 'cancelled';
   createdAt: string;
   isLobbyGame?: boolean;
   maxPlayers?: number;

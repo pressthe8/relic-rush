@@ -24,7 +24,7 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
   gameCode
 }) => {
   const [copied, setCopied] = useState(false)
-  const boardSize = playerBoard.board_state.length
+  const boardSize = playerBoard.boardState.length
 
   const handleCopyGameCode = async () => {
     if (gameCode) {
@@ -38,8 +38,8 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
   const totalPlayers = otherPlayers.length + 1
 
   // Debug logging for sub-grid hints
-  console.log('🎮 MultiplayerBoard render - playerBoard.sub_grid_hints:', playerBoard.sub_grid_hints)
-  console.log('🎮 Has hints?', Object.keys(playerBoard.sub_grid_hints || {}).length > 0)
+  console.log('🎮 MultiplayerBoard render - playerBoard.subGridHints:', playerBoard.subGridHints)
+  console.log('🎮 Has hints?', Object.keys(playerBoard.subGridHints || {}).length > 0)
 
   return (
     <div className="w-full max-w-4xl space-y-6">
@@ -74,9 +74,9 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
       <div className="flex flex-wrap items-center gap-6 p-4 bg-white rounded-xl shadow-lg">
         <div className="flex items-center gap-2 text-gray-700">
           <Shovel className="w-5 h-5 text-amber-600" />
-          <span className="font-medium">Digs: {playerBoard.remaining_digs}</span>
+          <span className="font-medium">Digs: {playerBoard.remainingDigs}</span>
         </div>
-        
+
         <div className="flex items-center gap-2 text-gray-700">
           <Trophy className="w-5 h-5 text-amber-600" />
           <span className="font-medium">Score: {playerBoard.score}</span>
@@ -92,15 +92,15 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
       <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
         <h3 className="font-semibold text-amber-800 mb-2">🗺️ Treasure Hunt Heat Map</h3>
         <p className="text-sm text-amber-700 mb-3">
-          Colored borders show sub-grid areas where other players have found treasures. 
+          Colored borders show sub-grid areas where other players have found treasures.
           Intensity increases with more discoveries in that area.
         </p>
-        
+
         {/* Debug info */}
         <div className="mb-3 p-2 bg-amber-100 rounded text-xs text-amber-800">
-          <strong>Debug:</strong> Sub-grid hints: {JSON.stringify(playerBoard.sub_grid_hints || {})}
+          <strong>Debug:</strong> Sub-grid hints: {JSON.stringify(playerBoard.subGridHints || {})}
         </div>
-        
+
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 border-2 border-yellow-400 bg-yellow-100 rounded"></div>
@@ -123,7 +123,7 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
 
       {/* Game Board - Only show player's own board state with sub-grid hints */}
       <div className="flex justify-center">
-        <div 
+        <div
           className={`
             grid gap-2 p-6 bg-emerald-950/10 rounded-xl shadow-inner
             transition-all duration-300
@@ -135,16 +135,16 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
             maxWidth: `${boardSize * 3.5}rem`
           }}
         >
-          {playerBoard.board_state.map((row: any[], rowIndex: number) => (
+          {playerBoard.boardState.map((row: any[], rowIndex: number) => (
             row.map((square: any, colIndex: number) => (
               <Square
                 key={`${rowIndex}-${colIndex}`}
                 square={square}
                 position={{ row: rowIndex, col: colIndex }}
                 gridSize={boardSize}
-                subGridHints={playerBoard.sub_grid_hints || {}}
+                subGridHints={playerBoard.subGridHints || {}}
                 onClick={() => onDig({ row: rowIndex, col: colIndex })}
-                disabled={isLoading || playerBoard.remaining_digs <= 0}
+                disabled={isLoading || playerBoard.remainingDigs <= 0}
                 isOpponentView={false}
                 showOwnDiscoveries={true}
               />

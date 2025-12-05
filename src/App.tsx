@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useMultiplayerGame } from './hooks/useMultiplayerGame'
 import { MultiplayerSetup } from './components/MultiplayerSetup'
 import { MultiplayerBoard } from './components/MultiplayerBoard'
@@ -35,8 +35,26 @@ function App() {
     joinGameSession,
     joinGameSessionByCode,
     dig: multiplayerDig,
-    resetGame: resetMultiplayerGame
+    resetGame: resetMultiplayerGame,
+    checkForActiveGame
   } = useMultiplayerGame()
+
+  // Check for active game on mount
+  useEffect(() => {
+    const checkRejoin = async () => {
+      const result = await checkForActiveGame()
+      if (result) {
+        console.log('🔄 Found session to rejoin:', result)
+        // Route based on game status
+        if (result.status === 'scheduled') {
+          setAppMode('lobby')
+        } else if (result.status === 'active') {
+          setAppMode('game')
+        }
+      }
+    }
+    checkRejoin()
+  }, [checkForActiveGame])
 
   const handleBackToIntroduction = () => {
     setAppMode('introduction')
@@ -126,7 +144,6 @@ function App() {
         {appMode === 'introduction' && (
           <GameIntroduction
             onEnterLobby={handleEnterLobby}
-            onEnterPrivateSetup={ENABLE_PRIVATE_GAMES ? handleEnterPrivateSetup : undefined}
           />
         )}
 

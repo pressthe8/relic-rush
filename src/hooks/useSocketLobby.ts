@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { io, Socket } from 'socket.io-client'
 import { generateMockPlayerId } from '../lib/firebase'
 
@@ -22,12 +22,9 @@ interface LobbyState {
   playerMockId: string
 }
 
-interface LobbyPlayer {
-  id: string
-  joinedAt: string
-}
 
-export const useSocketLobby = () => {
+
+export const useSocketLobby = (onGameStart?: (gameId: string) => void) => {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [lobbyState, setLobbyState] = useState<LobbyState>({
     currentGame: null,
@@ -39,6 +36,12 @@ export const useSocketLobby = () => {
     error: null,
     playerMockId: generateMockPlayerId()
   })
+
+  // Keep track of the latest callback without triggering re-renders or re-connections
+  const onGameStartRef = React.useRef(onGameStart)
+  useEffect(() => {
+    onGameStartRef.current = onGameStart
+  }, [onGameStart])
 
   // Initialize socket connection for WebContainer
   useEffect(() => {
@@ -161,8 +164,9 @@ export const useSocketLobby = () => {
 
     newSocket.on('gameStarting', (data) => {
       console.log('🚀 Game is starting:', data.gameId)
-      // Redirect to game - in WebContainer, we'll use the current URL structure
-      window.location.href = `${window.location.origin}/#/game/${data.gameId}`
+      if (onGameStartRef.current) {
+        onGameStartRef.current(data.gameId)
+      }
     })
 
     return () => {

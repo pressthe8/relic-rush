@@ -18,7 +18,13 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
     error,
     joinGame,
     leaveGame
-  } = useSocketLobby()
+  } = useSocketLobby(onGameStart)
+
+  React.useEffect(() => {
+    if (currentGame && !hasJoined && !isJoining) {
+      joinGame();
+    }
+  }, [currentGame, hasJoined, isJoining, joinGame]);
 
   // Connection status indicator
   const ConnectionStatus = () => (
@@ -99,7 +105,7 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
           <div className="text-center mb-6">
             <CountdownTimer
               targetTime={currentGame.scheduledStartTime}
-              onComplete={() => window.location.reload()}
+              onComplete={() => console.log('Countdown finished, waiting for game start...')}
               variant="success"
             />
           </div>
@@ -185,7 +191,7 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
             <div className="text-center">
               <CountdownTimer
                 targetTime={currentGame.scheduledStartTime}
-                onComplete={() => window.location.reload()}
+                onComplete={() => console.log('Countdown finished, waiting for game start...')}
               />
             </div>
 

@@ -73,7 +73,8 @@ const db = admin.firestore();
 let lobbyState = {
   currentGame: null,
   players: new Map(), // playerId -> { socketId, playerData }
-  gameTimer: null
+  gameTimer: null,
+  isInitialized: false
 };
 
 // Utility functions
@@ -164,6 +165,14 @@ const startGame = async (gameId) => {
     io.to('lobby').emit('gameStarting', { gameId });
 
     console.log('✅ Game started successfully');
+
+    // Clear lobby state and create new lobby game immediately
+    // This ensures new players see a fresh countdown
+    lobbyState.players.clear();
+    lobbyState.currentGame = await ensureLobbyGame();
+    setupGameTimer();
+    broadcastLobbyUpdate();
+
   } catch (error) {
     console.error('❌ Failed to start game:', error);
   }
@@ -196,31 +205,44 @@ const cancelGame = async (gameId) => {
   }
 };
 
+let lobbyCreationPromise = null;
+
 const ensureLobbyGame = async () => {
-  try {
-    // Check if there's already a scheduled lobby game
-    const existingGameSnapshot = await db.collection('gameSessions')
-      .where('isLobbyGame', '==', true)
-      .where('status', '==', 'scheduled')
-      .limit(1)
-      .get();
-
-    if (!existingGameSnapshot.empty) {
-      const existingGameDoc = existingGameSnapshot.docs[0];
-      const existingGame = {
-        id: existingGameDoc.id,
-        ...existingGameDoc.data()
-      };
-      console.log('✅ Found existing lobby game:', existingGame.gameCode);
-      return existingGame;
-    }
-
-    // Create new lobby game
-    return await createLobbyGame();
-  } catch (error) {
-    console.error('❌ Error ensuring lobby game:', error);
-    return await createLobbyGame();
+  if (lobbyCreationPromise) {
+    console.log('⏳ Waiting for existing lobby creation...');
+    return lobbyCreationPromise;
   }
+
+  lobbyCreationPromise = (async () => {
+    try {
+      // Check if there's already a scheduled lobby game
+      const existingGameSnapshot = await db.collection('gameSessions')
+        .where('isLobbyGame', '==', true)
+        .where('status', '==', 'scheduled')
+        .limit(1)
+        .get();
+
+      if (!existingGameSnapshot.empty) {
+        const existingGameDoc = existingGameSnapshot.docs[0];
+        const existingGame = {
+          id: existingGameDoc.id,
+          ...existingGameDoc.data()
+        };
+        console.log('✅ Found existing lobby game:', existingGame.gameCode);
+        return existingGame;
+      }
+
+      // Create new lobby game
+      return await createLobbyGame();
+    } catch (error) {
+      console.error('❌ Error ensuring lobby game:', error);
+      return await createLobbyGame();
+    } finally {
+      lobbyCreationPromise = null;
+    }
+  })();
+
+  return lobbyCreationPromise;
 };
 
 const broadcastLobbyUpdate = () => {
@@ -245,6 +267,24 @@ const setupGameTimer = () => {
   if (!lobbyState.currentGame) return;
 
   const timeUntilStart = new Date(lobbyState.currentGame.scheduledStartTime).getTime() - Date.now();
+
+  if (timeUntilStart <= 0) {
+    console.log('⏰ Game start time has passed, checking start conditions...');
+
+    if (lobbyState.players.size >= 2) {
+      // Start the game immediately
+      startGame(lobbyState.currentGame.id);
+    } else {
+      // Cancel and create new game
+      cancelGame(lobbyState.currentGame.id).then(async () => {
+        lobbyState.players.clear();
+        lobbyState.currentGame = await ensureLobbyGame();
+        setupGameTimer();
+        broadcastLobbyUpdate();
+      });
+    }
+    return;
+  }
 
   if (timeUntilStart > 0) {
     lobbyState.gameTimer = setTimeout(async () => {
@@ -291,6 +331,22 @@ io.on('connection', (socket) => {
 
     socket.join('lobby');
 
+    // Wait for lobby to be initialized
+    if (!lobbyState.isInitialized) {
+      console.log('⏳ Waiting for lobby initialization...');
+      // Wait up to 10 seconds for initialization
+      const startTime = Date.now();
+      while (!lobbyState.isInitialized && Date.now() - startTime < 10000) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      if (!lobbyState.isInitialized) {
+        console.error('❌ Lobby initialization timeout');
+        socket.emit('lobbyError', { message: 'Lobby not ready, please try again' });
+        return;
+      }
+    }
+
     // Ensure we have a lobby game
     if (!lobbyState.currentGame) {
       lobbyState.currentGame = await ensureLobbyGame();
@@ -308,6 +364,54 @@ io.on('connection', (socket) => {
   socket.on('joinGame', async (data) => {
     const { mockPlayerId } = data;
     console.log('🎯 Player joining game:', mockPlayerId);
+
+    // Check if player is already in the lobby map (rejoining lobby)
+    if (lobbyState.players.has(mockPlayerId)) {
+      console.log('🔄 Player rejoining lobby:', mockPlayerId);
+      const playerInfo = lobbyState.players.get(mockPlayerId);
+
+      // Update socket ID
+      playerInfo.socketId = socket.id;
+      lobbyState.players.set(mockPlayerId, playerInfo);
+
+      socket.emit('joinSuccess', { playerBoard: playerInfo.playerData });
+      broadcastLobbyUpdate();
+      return;
+    }
+
+    // Check if player board exists in Firebase for current game (rejoin after disconnect)
+    try {
+      console.log('🔍 Checking Firebase for existing board. mockPlayerId:', mockPlayerId, 'currentGameId:', lobbyState.currentGame.id);
+
+      const existingBoardSnapshot = await db.collection('playerBoards')
+        .where('mockPlayerId', '==', mockPlayerId)
+        .where('sessionId', '==', lobbyState.currentGame.id)
+        .limit(1)
+        .get();
+
+      console.log('🔍 Firebase query returned', existingBoardSnapshot.size, 'results');
+
+      if (!existingBoardSnapshot.empty) {
+        console.log('🔄 Restoring player from Firebase:', mockPlayerId);
+        const boardDoc = existingBoardSnapshot.docs[0];
+        const playerBoard = {
+          id: boardDoc.id,
+          ...boardDoc.data()
+        };
+
+        // Restore to lobby state
+        lobbyState.players.set(mockPlayerId, {
+          socketId: socket.id,
+          playerData: playerBoard
+        });
+
+        socket.emit('joinSuccess', { playerBoard });
+        broadcastLobbyUpdate();
+        return;
+      }
+    } catch (error) {
+      console.error('❌ Error checking for existing player board:', error);
+    }
 
     if (!lobbyState.currentGame || lobbyState.players.size >= 6) {
       socket.emit('joinError', { message: 'Game is full or not available' });
@@ -399,17 +503,27 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('🔌 User disconnected:', socket.id);
 
-    // Find and remove player by socket ID
+    // Find player by socket ID
     for (const [playerId, playerInfo] of lobbyState.players.entries()) {
       if (playerInfo.socketId === socket.id) {
-        console.log('🚪 Auto-removing disconnected player:', playerId);
+        console.log('🚪 Player disconnected from lobby:', playerId);
+
+        // Remove from in-memory lobby state
         lobbyState.players.delete(playerId);
 
-        // Remove from database
-        db.collection('playerBoards').doc(playerInfo.playerData.id).delete()
-          .then(() => broadcastLobbyUpdate())
-          .catch(console.error);
+        // Only delete from database if the game hasn't been joined yet
+        // For scheduled/active games, preserve the player data for rejoining
+        if (lobbyState.currentGame && lobbyState.currentGame.status === 'scheduled') {
+          console.log('💾 Preserving player data for rejoin (scheduled game)');
+          // Don't delete from database - they can rejoin
+        } else {
+          // Game is waiting/cancelled/completed, safe to delete
+          console.log('🗑️ Removing player from database');
+          db.collection('playerBoards').doc(playerInfo.playerData.id).delete()
+            .catch(console.error);
+        }
 
+        broadcastLobbyUpdate();
         break;
       }
     }
@@ -425,28 +539,78 @@ const initializeLobby = async () => {
     await db.collection('gameSessions').limit(1).get();
     console.log('✅ Firebase connection successful');
 
-    // Clean up any existing lobby games
+    // Clean up any existing lobby games FIRST
     const existingLobbyGames = await db.collection('gameSessions')
       .where('isLobbyGame', '==', true)
       .where('status', 'in', ['scheduled', 'waiting'])
       .get();
 
-    const batch = db.batch();
-    existingLobbyGames.docs.forEach(doc => {
-      batch.update(doc.ref, {
-        status: 'cancelled',
-        lastUpdated: new Date().toISOString()
-      });
-    });
-    await batch.commit();
+    if (!existingLobbyGames.empty) {
+      const batch = db.batch();
+      const gameIds = [];
 
-    // Create initial lobby game
+      existingLobbyGames.docs.forEach(doc => {
+        gameIds.push(doc.id);
+        batch.update(doc.ref, {
+          status: 'cancelled',
+          lastUpdated: new Date().toISOString()
+        });
+      });
+      await batch.commit();
+      console.log(`✅ Cancelled ${existingLobbyGames.size} existing lobby games`);
+
+      // Delete player boards from these games
+      for (const gameId of gameIds) {
+        const playersSnapshot = await db.collection('playerBoards')
+          .where('sessionId', '==', gameId)
+          .get();
+
+        if (!playersSnapshot.empty) {
+          const deleteBatch = db.batch();
+          playersSnapshot.docs.forEach(doc => {
+            deleteBatch.delete(doc.ref);
+          });
+          await deleteBatch.commit();
+          console.log(`🗑️ Deleted ${playersSnapshot.size} player boards from game ${gameId}`);
+        }
+      }
+    }
+
+    // ALSO clean up player boards from ANY cancelled lobby games (from previous restarts)
+    const cancelledLobbyGames = await db.collection('gameSessions')
+      .where('isLobbyGame', '==', true)
+      .where('status', '==', 'cancelled')
+      .get();
+
+    if (!cancelledLobbyGames.empty) {
+      console.log(`🧹 Found ${cancelledLobbyGames.size} old cancelled lobby games, cleaning up player boards...`);
+
+      for (const gameDoc of cancelledLobbyGames.docs) {
+        const playersSnapshot = await db.collection('playerBoards')
+          .where('sessionId', '==', gameDoc.id)
+          .get();
+
+        if (!playersSnapshot.empty) {
+          const deleteBatch = db.batch();
+          playersSnapshot.docs.forEach(doc => {
+            deleteBatch.delete(doc.ref);
+          });
+          await deleteBatch.commit();
+          console.log(`🗑️ Deleted ${playersSnapshot.size} orphaned player boards from cancelled game ${gameDoc.id}`);
+        }
+      }
+    }
+
+    // NOW create a fresh lobby game (ensureLobbyGame won't find any scheduled ones)
     lobbyState.currentGame = await ensureLobbyGame();
     setupGameTimer();
+
+    lobbyState.isInitialized = true;
 
     console.log('✅ Lobby system initialized');
   } catch (error) {
     console.error('❌ Failed to initialize lobby system:', error);
+    lobbyState.isInitialized = true; // Set to true even on error to avoid blocking
   }
 };
 

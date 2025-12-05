@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import {
+  db,
   generateMockPlayerId,
   generateGameCode,
   isValidGameCode,
@@ -714,12 +716,65 @@ export const useMultiplayerGame = () => {
     }
   }, [stopListeners])
 
+  // Check for active game session for the current player
+  const checkForActiveGame = useCallback(async () => {
+    try {
+      console.log('🔍 Checking for active game with mockPlayerId:', state.mockPlayerId)
+
+      // Get all boards for this player (mock ID)
+      const playersRef = collection(db, 'playerBoards')
+      const q = query(playersRef, where('mockPlayerId', '==', state.mockPlayerId))
+      const snapshot = await getDocs(q)
+
+      console.log('🔍 Found', snapshot.size, 'player boards for this ID')
+
+      if (snapshot.empty) {
+        console.log('🔍 No existing player boards found')
+        return null
+      }
+
+      // Check each board to see if it belongs to an active or scheduled session
+      for (const doc of snapshot.docs) {
+        const boardData = doc.data()
+        console.log('🔍 Checking board:', doc.id, 'sessionId:', boardData.sessionId)
+        const session = await getGameSession(boardData.sessionId)
+
+        console.log('🔍 Session status:', session?.status)
+
+        // Skip cancelled/completed games
+        if (!session || session.status === 'cancelled' || session.status === 'completed') {
+          console.log('🔍 Skipping cancelled/completed session')
+          continue
+        }
+
+        if (session.status === 'active') {
+          console.log('🔄 Rejoining active game:', session.id)
+          // For active games, load the full session
+          await joinGameSession(session.id)
+          return { sessionId: session.id, status: 'active' }
+        } else if (session.status === 'scheduled' && session.isLobbyGame) {
+          console.log('🔄 Found scheduled lobby game:', session.id)
+          // For scheduled lobby games, just return the info
+          // Don't call joinGameSession - let the lobby handle it
+          return { sessionId: session.id, status: 'scheduled' }
+        }
+      }
+
+      console.log('🔍 No active or scheduled sessions found')
+      return null
+    } catch (error) {
+      console.error('Error checking for active game:', error)
+      return null
+    }
+  }, [state.mockPlayerId, joinGameSession])
+
   return {
     ...state,
     createGameSession,
     joinGameSession, // Join by session ID (for lobby)
     joinGameSessionByCode, // Join by game code (for private games)
     dig,
-    resetGame
+    resetGame,
+    checkForActiveGame
   }
 }
