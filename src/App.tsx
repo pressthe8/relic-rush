@@ -12,6 +12,7 @@ type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game'
 
 function App() {
   const [appMode, setAppMode] = useState<AppMode>('lobby') // Switch to lobby as default
+  const [autoJoinLobby, setAutoJoinLobby] = useState(false)
   const [settings, setSettings] = useState<GameSettings>({
     gridSize: 9 as GridSize,
     treasureCount: 5,
@@ -48,6 +49,7 @@ function App() {
         // Route based on game status
         if (result.status === 'scheduled') {
           setAppMode('lobby')
+          setAutoJoinLobby(true)
         } else if (result.status === 'active') {
           setAppMode('game')
         }
@@ -158,7 +160,10 @@ function App() {
               Back to Introduction
             </button>
 
-            <SocketGameLobby onGameStart={handleGameStart} />
+            <SocketGameLobby
+              onGameStart={handleGameStart}
+              autoJoin={autoJoinLobby}
+            />
           </>
         )}
 

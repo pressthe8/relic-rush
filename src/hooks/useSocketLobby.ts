@@ -116,11 +116,20 @@ export const useSocketLobby = (onGameStart?: (gameId: string) => void) => {
 
     newSocket.on('lobbyUpdate', (data) => {
       console.log('📡 Received lobby update:', data)
-      setLobbyState(prev => ({
-        ...prev,
-        currentGame: data.currentGame,
-        playerCount: data.playerCount
-      }))
+      setLobbyState(prev => {
+        // Check if we are still in the player list
+        // data.players is an array of { id, joinedAt }
+        const isStillJoined = data.players?.some((p: any) => p.id === prev.playerMockId)
+
+        return {
+          ...prev,
+          currentGame: data.currentGame,
+          playerCount: data.playerCount,
+          // If we were joined but are no longer in the list (e.g. server reset lobby),
+          // update hasJoined to false. Otherwise keep existing state.
+          hasJoined: isStillJoined ?? prev.hasJoined
+        }
+      })
     })
 
     // Game events

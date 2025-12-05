@@ -1,13 +1,14 @@
 import React from 'react'
 import { useSocketLobby } from '../hooks/useSocketLobby'
 import { CountdownTimer } from './CountdownTimer'
-import { Users, RefreshCw, AlertCircle, Wifi, WifiOff, Grid3x3, Trophy, Clock } from 'lucide-react'
+import { Users, RefreshCw, AlertCircle, Wifi, Grid3x3, Trophy, Clock } from 'lucide-react'
 
 interface SocketGameLobbyProps {
   onGameStart: (sessionId: string) => void
+  autoJoin?: boolean
 }
 
-export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart }) => {
+export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart, autoJoin = false }) => {
   const {
     currentGame,
     playerCount,
@@ -21,16 +22,16 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
   } = useSocketLobby(onGameStart)
 
   React.useEffect(() => {
-    if (currentGame && !hasJoined && !isJoining) {
+    if (currentGame && !hasJoined && !isJoining && autoJoin) {
       joinGame();
     }
-  }, [currentGame, hasJoined, isJoining, joinGame]);
+  }, [currentGame, hasJoined, isJoining, joinGame, autoJoin]);
 
   // Connection status indicator
   const ConnectionStatus = () => (
-    <div className={`flex items-center gap-2 text-sm ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-      {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-      {isConnected ? 'Connected' : 'Disconnected'}
+    <div className={`flex items-center gap-2 text-sm ${isConnected ? 'text-green-600' : 'text-amber-600'}`}>
+      {isConnected ? <Wifi className="w-4 h-4" /> : <RefreshCw className="w-4 h-4 animate-spin" />}
+      {isConnected ? 'Connected' : 'Connecting...'}
     </div>
   )
 
@@ -38,7 +39,7 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart })
     return (
       <div className="w-full max-w-2xl space-y-6">
         <div className="text-center">
-          <WifiOff className="w-8 h-8 text-red-600 mx-auto mb-4" />
+          <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Connecting to Lobby...</h2>
           <p className="text-gray-600">Establishing real-time connection</p>
         </div>

@@ -7,8 +7,8 @@ interface CountdownTimerProps {
   variant?: 'default' | 'success'
 }
 
-export const CountdownTimer: React.FC<CountdownTimerProps> = ({ 
-  targetTime, 
+export const CountdownTimer: React.FC<CountdownTimerProps> = ({
+  targetTime,
   onComplete,
   variant = 'default'
 }) => {
@@ -16,13 +16,18 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({
   const [isExpired, setIsExpired] = useState(false)
 
   useEffect(() => {
+    // Reset expired state when targetTime changes
+    setIsExpired(false)
+  }, [targetTime])
+
+  useEffect(() => {
     const updateTimer = () => {
       const now = new Date().getTime()
       const target = new Date(targetTime).getTime()
       const remaining = Math.max(0, target - now)
-      
+
       setTimeRemaining(remaining)
-      
+
       if (remaining === 0 && !isExpired) {
         setIsExpired(true)
         onComplete?.()
@@ -70,7 +75,7 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({
 
   const getStatusText = () => {
     if (isExpired) return 'Game Starting...'
-    
+
     const minutes = Math.floor(timeRemaining / 60000)
     if (minutes <= 2) return 'Starting Soon!'
     if (minutes <= 5) return 'Get Ready!'
@@ -84,20 +89,20 @@ export const CountdownTimer: React.FC<CountdownTimerProps> = ({
           {getIcon()}
           <span className="font-semibold">{getStatusText()}</span>
         </div>
-        
+
         <div className={`text-3xl font-bold font-mono ${getTimeColor()}`}>
           {isExpired ? '0:00' : formatTime(timeRemaining)}
         </div>
-        
+
         {!isExpired && (
           <p className="text-sm text-gray-600">
-            {timeRemaining <= 120000 
+            {timeRemaining <= 120000
               ? 'Game will start automatically when timer reaches zero'
               : 'Or when 6 players join, whichever comes first'
             }
           </p>
         )}
-        
+
         {isExpired && (
           <p className="text-sm text-red-600 font-medium">
             Redirecting to game...
