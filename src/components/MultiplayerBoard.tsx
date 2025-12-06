@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Square } from './Square'
 import { PlayerBoard } from '../lib/firebase'
-import { Users, Trophy, Shovel, Copy, Check, Hash } from 'lucide-react'
+import { Users, Trophy, Shovel, Copy, Check, Hash, Loader2 } from 'lucide-react'
 
 interface Position {
   row: number
@@ -102,10 +102,7 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
           Intensity increases with more discoveries in that area.
         </p>
 
-        {/* Debug info */}
-        <div className="mb-3 p-2 bg-amber-100 rounded text-xs text-amber-800">
-          <strong>Debug:</strong> Sub-grid hints: {JSON.stringify(playerBoard.subGridHints || {})}
-        </div>
+
 
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-2">
@@ -130,13 +127,24 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
       {/* Game Board with Integrated Labels */}
       <div className="flex justify-center p-4">
         <div
-          className="grid gap-2"
+          className="grid gap-2 relative"
           style={{
             gridTemplateColumns: `auto repeat(${boardSize}, minmax(0, 1fr))`,
             width: '100%',
             maxWidth: `${boardSize * 3.5 + 2}rem` // Add space for labels
           }}
         >
+          {/* Overlay for Out of Digs - Blocks interaction when player has no digs left */}
+          {playerBoard.remainingDigs <= 0 && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/90 backdrop-blur-sm rounded-lg border border-amber-200 shadow-sm">
+              <div className="flex flex-col items-center p-6 text-center transform scale-110">
+                <Loader2 className="w-10 h-10 text-amber-600 animate-spin mb-4" />
+                <h3 className="text-2xl font-bold text-amber-800 mb-2">All Digs Used</h3>
+                <p className="text-emerald-800 font-medium px-4 py-1 bg-emerald-100/50 rounded-full text-sm">Waiting for other players...</p>
+              </div>
+            </div>
+          )}
+
           {/* Top-Left Corner Spacer */}
           <div className="h-6 w-6"></div>
 
