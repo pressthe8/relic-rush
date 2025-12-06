@@ -189,6 +189,9 @@ const cancelGame = async (gameId) => {
       lastUpdated: new Date().toISOString()
     });
 
+    // Archive stats BEFORE deleting boards
+    await archiveGame(gameId, 'cancelled');
+
     // Remove all players from cancelled game
     const playersSnapshot = await db.collection('playerBoards')
       .where('sessionId', '==', gameId)
@@ -621,134 +624,149 @@ const initializeLobby = async () => {
   }
 };
 
+const archiveGame = async (gameId, statusOverride = null) => {
+  try {
+    const gameDoc = await db.collection('gameSessions').doc(gameId).get();
+    if (!gameDoc.exists) return;
+
+    const game = gameDoc.data();
+    const status = statusOverride || game.status;
+
+    // Fetch all players for this game
+    const playersSnapshot = await db.collection('playerBoards')
+      .where('sessionId', '==', gameId)
+      .get();
+
+    // Calculate Stats
+    const players = playersSnapshot.docs.map(doc => doc.data());
+    const finalPlayerCount = players.length;
+
+    // Duration
+    const startTime = new Date(game.startTime || game.createdAt);
+    const endTime = new Date(game.endTime || new Date().toISOString());
+    const durationSeconds = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
+
+    // Total Discoveries
+    // We can sum up discoveries from all players to be robust
+    const totalDiscoveries = players.reduce((sum, p) => sum + (p.discoveries ? p.discoveries.length : 0), 0);
+
+    // Leaderboard & Winner
+    // Sort by score descending
+    const sortedPlayers = players.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+    const leaderboard = sortedPlayers.map((p, index) => ({
+      playerId: p.mockPlayerId,
+      score: p.score || 0,
+      digsUsed: game.digAttempts - (p.remainingDigs || 0),
+      discoveriesCount: p.discoveries ? p.discoveries.length : 0,
+      rank: index + 1
+    }));
+
+    // Winner is top of leaderboard if game is completed
+    const winner = (status === 'completed' && leaderboard.length > 0)
+      ? { playerId: leaderboard[0].playerId, score: leaderboard[0].score }
+      : null;
+
+    // Write to gameHistory
+    await db.collection('gameHistory').doc(gameId).set({
+      gameId,
+      gameCode: game.gameCode,
+      status: status,
+      startedAt: game.startTime || null,
+      endedAt: endTime.toISOString(),
+      durationSeconds: durationSeconds > 0 ? durationSeconds : 0,
+      totalDiscoveries,
+      finalPlayerCount,
+      winner,
+      leaderboard,
+      archivedAt: new Date().toISOString()
+    }, { merge: true });
+
+    console.log(`📜 Archived game ${gameId} as ${status}`);
+
+  } catch (error) {
+    console.error(`❌ Failed to archive game ${gameId}:`, error);
+  }
+};
+
 const cleanupOldGames = async () => {
   console.log('🧹 Starting cleanup of old games...');
   try {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    // ----------------------------------------------------------------
-    // STEP A: Archive Completed Games (Keep Data Check)
-    // ----------------------------------------------------------------
-    const completedGamesSnapshot = await db.collection('gameSessions')
-      .where('status', '==', 'completed')
+    // Query ALL games last updated > 24h ago
+    const oldGamesSnapshot = await db.collection('gameSessions')
       .where('lastUpdated', '<', twentyFourHoursAgo)
       .get();
 
-    if (!completedGamesSnapshot.empty) {
-      console.log(`📦 Found ${completedGamesSnapshot.size} old COMPLETED games to archive`);
-      const batch = db.batch();
-
-      for (const doc of completedGamesSnapshot.docs) {
-        const game = doc.data();
-        let finalPlayerCount = game.startedPlayerCount;
-
-        // Fallback: If startedPlayerCount missing (old games), count playerBoards
-        if (finalPlayerCount === undefined) {
-          const playersSnapshot = await db.collection('playerBoards')
-            .where('sessionId', '==', doc.id)
-            .count()
-            .get();
-          finalPlayerCount = playersSnapshot.data().count;
-        }
-
-        const historyRef = db.collection('gameHistory').doc(doc.id);
-        batch.set(historyRef, {
-          gameId: doc.id,
-          gameCode: game.gameCode,
-          startedAt: game.startTime,
-          endedAt: game.endTime,
-          status: 'completed',
-          finalPlayerCount: finalPlayerCount || 0,
-          archivedAt: new Date().toISOString()
-        }, { merge: true });
-      }
-
-      await batch.commit();
-      console.log(`✅ Archived ${completedGamesSnapshot.size} completed games`);
-    }
-
-    // ----------------------------------------------------------------
-    // STEP B: Archive & Delete Cancelled Games (Trash Collection)
-    // ----------------------------------------------------------------
-    const cancelledGamesSnapshot = await db.collection('gameSessions')
-      .where('status', '==', 'cancelled')
-      .where('lastUpdated', '<', twentyFourHoursAgo)
-      .get();
-
-    if (cancelledGamesSnapshot.empty) {
-      console.log('✅ No old cancelled games to cleanup');
+    if (oldGamesSnapshot.empty) {
+      console.log('✅ No old games to cleanup');
       return;
     }
 
-    console.log(`🧹 Found ${cancelledGamesSnapshot.size} old CANCELLED games to archive and delete`);
+    console.log(`🧹 Found ${oldGamesSnapshot.size} old games to process`);
 
-    // B1: Archive First
-    const archiveBatch = db.batch();
+    const batch = db.batch();
     const gameIdsToDelete = [];
 
-    for (const doc of cancelledGamesSnapshot.docs) {
+    for (const doc of oldGamesSnapshot.docs) {
       const game = doc.data();
       gameIdsToDelete.push(doc.id);
 
-      let finalPlayerCount = game.startedPlayerCount;
-
-      // Fallback: If startedPlayerCount missing (lobby games or old games), count playerBoards
-      if (finalPlayerCount === undefined) {
-        const playersSnapshot = await db.collection('playerBoards')
-          .where('sessionId', '==', doc.id)
-          .count()
-          .get();
-        finalPlayerCount = playersSnapshot.data().count;
+      // ZOMBIE CHECK: If status is active/scheduled/waiting, force archive as cancelled
+      let statusToArchive = game.status;
+      if (['active', 'scheduled', 'waiting'].includes(game.status)) {
+        console.log(`🧟 Found ZOMBIE game ${game.gameCode} (${game.status}). Force archiving as cancelled.`);
+        statusToArchive = 'cancelled';
       }
 
-      const historyRef = db.collection('gameHistory').doc(doc.id);
-      archiveBatch.set(historyRef, {
-        gameId: doc.id,
-        gameCode: game.gameCode,
-        startedAt: game.startTime || null,
-        endedAt: game.endTime || new Date().toISOString(),
-        status: 'cancelled',
-        finalPlayerCount: finalPlayerCount || 0,
-        archivedAt: new Date().toISOString()
-      }, { merge: true });
+      // Archive it first (Safety Net)
+      await archiveGame(doc.id, statusToArchive);
+
+      // Mark for deletion
+      batch.delete(doc.ref);
     }
 
-    await archiveBatch.commit();
-    console.log(`✅ Archived ${cancelledGamesSnapshot.size} cancelled games`);
-
-    // B2: Delete Children (Player Boards) FIRST
-    let totalBoardsDeleted = 0;
+    // Delete Players for these games
     for (const gameId of gameIdsToDelete) {
       const playersSnapshot = await db.collection('playerBoards')
         .where('sessionId', '==', gameId)
         .get();
 
       if (!playersSnapshot.empty) {
-        const deleteBatch = db.batch();
-        playersSnapshot.docs.forEach(doc => {
-          deleteBatch.delete(doc.ref);
-        });
-        await deleteBatch.commit();
-        totalBoardsDeleted += playersSnapshot.size;
+        const playerBatch = db.batch();
+        playersSnapshot.docs.forEach(p => playerBatch.delete(p.ref));
+        await playerBatch.commit();
       }
     }
-    console.log(`✅ Deleted ${totalBoardsDeleted} player boards from cancelled games`);
 
-    // B3: Delete Parents (Game Sessions) LAST
-    const deleteGameBatch = db.batch();
-    cancelledGamesSnapshot.docs.forEach(doc => {
-      deleteGameBatch.delete(doc.ref);
-    });
-
-    await deleteGameBatch.commit();
-    console.log(`✅ Deleted ${cancelledGamesSnapshot.size} cancelled game sessions`);
-
-    console.log(`✅ Cleanup complete`);
+    // Commit Game Deletions
+    await batch.commit();
+    console.log(`✅ Cleanup complete. Processed ${oldGamesSnapshot.size} games.`);
 
   } catch (error) {
     console.error('❌ Error during game cleanup:', error);
   }
 };
+
+// Add endpoint for immediate archiving from client
+app.post('/api/archive-game', async (req, res) => {
+  const { gameId, status } = req.body;
+  if (!gameId) {
+    return res.status(400).json({ error: 'Missing gameId' });
+  }
+
+  console.log(`📥 Received archive request for ${gameId} (${status})`);
+
+  // Archiving is async, don't block response too long but ensure it starts
+  archiveGame(gameId, status).then(() => {
+    console.log(`✅ Immediate archive successful for ${gameId}`);
+  }).catch(err => {
+    console.error(`❌ Immediate archive failed for ${gameId}:`, err);
+  });
+
+  res.json({ success: true, message: 'Archive process started' });
+});
 
 // Start server
 const PORT = process.env.PORT || 3001;

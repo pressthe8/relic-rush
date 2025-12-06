@@ -128,6 +128,14 @@ export const useMultiplayerGame = () => {
 
         console.log('Session status updated to completed')
 
+        // Trigger immediate archive on server
+        // Use hardcoded URL to match existing socket logic in useSocketLobby
+        fetch('http://localhost:3001/api/archive-game', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gameId: sessionId, status: 'completed' })
+        }).catch(err => console.error('Failed to trigger archive:', err))
+
         // Sort players by score (highest first)
         const sortedResults = allBoards.sort((a, b) => b.score - a.score)
         console.log('Final results (sorted by score):', sortedResults)

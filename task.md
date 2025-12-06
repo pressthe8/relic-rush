@@ -15,7 +15,14 @@
 - **2025-06-07 15:45**: Fixed Supabase error handling in joinGameSession function to properly display user-friendly error messages instead of raw JSON responses when game codes don't exist
 - **2025-06-07 07:27**: Added simple 6-character game codes (e.g., ABC123) for easier multiplayer game joining with unique constraint and efficient lookups
 - **2025-06-07 01:22**: Added sub_grid_hints column to player_boards table for treasure hunt heat map feature enabling strategic multiplayer gameplay
-- **2025-06-07 00:47**: Implemented game timeout functionality - waiting games cancelled after 30 minutes, active games after 2 hours of inactivity, with automatic cleanup
+- **2025-06-07 00:47**:- [x] Implement Game Cleanup Logic (Server)
+    - [x] Archive completed games to `gameHistory`
+    - [x] Delete cancelled games (PlayerBoards first, then Session)
+    - [x] Schedule daily cleanup job
+- [x] Enhanced Analytics & History
+    - [x] Implement `archiveGame` with rich stats (Duration, Leaderboard)
+    - [x] Add API endpoint for immediate archiving
+    - [x] Implement "Safety Net" for zombie games
 - **2025-06-06 19:11**: Fixed RLS infinite recursion by simplifying policies to allow public access for multiplayer functionality, resolving circular dependency issues
 - **2025-06-06 19:09**: Attempted to fix RLS infinite recursion in player_boards policies with non-recursive approach to prevent policy evaluation loops
 - **2025-06-06 19:08**: Fixed infinite recursion in game_sessions RLS policies by removing cross-table references that caused circular dependencies
