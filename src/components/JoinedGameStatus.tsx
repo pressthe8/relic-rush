@@ -4,12 +4,12 @@ import { Users, CheckCircle, Clock, LogOut } from 'lucide-react'
 
 interface LobbyGame {
   id: string
-  game_code: string
-  scheduled_start_time: string
-  max_players: number
+  gameCode: string
+  scheduledStartTime: string
+  maxPlayers: number
   status: 'scheduled'
-  player_count: number
-  joined_players: string[]
+  playerCount: number
+  joinedPlayers: string[]
 }
 
 interface JoinedGameStatusProps {
@@ -19,8 +19,8 @@ interface JoinedGameStatusProps {
 }
 
 export const JoinedGameStatus: React.FC<JoinedGameStatusProps> = ({ game, onLeave, isLeaving }) => {
-  const playersNeeded = game.max_players - game.player_count
-  const isFull = game.player_count >= game.max_players
+  const playersNeeded = game.maxPlayers - game.playerCount
+  const isFull = game.playerCount >= game.maxPlayers
 
   return (
     <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-6">
@@ -31,14 +31,14 @@ export const JoinedGameStatus: React.FC<JoinedGameStatusProps> = ({ game, onLeav
           <h3 className="text-2xl font-bold text-emerald-800">You're In!</h3>
         </div>
         <p className="text-emerald-700">
-          Successfully joined game <span className="font-mono font-bold">{game.game_code}</span>
+          Successfully joined game <span className="font-mono font-bold">{game.gameCode}</span>
         </p>
       </div>
 
       {/* Countdown Timer */}
       <div className="text-center mb-6">
         <CountdownTimer
-          targetTime={game.scheduled_start_time}
+          targetTime={game.scheduledStartTime}
           onComplete={() => window.location.reload()}
           variant="success"
         />
@@ -55,7 +55,7 @@ export const JoinedGameStatus: React.FC<JoinedGameStatusProps> = ({ game, onLeav
           <div className="space-y-2">
             <p className="text-emerald-700 font-medium">🎉 Game is full! Starting soon...</p>
             <p className="text-sm text-emerald-600">
-              All {game.max_players} players have joined. The game will begin shortly!
+              All {game.maxPlayers} players have joined. The game will begin shortly!
             </p>
           </div>
         ) : (
@@ -73,12 +73,12 @@ export const JoinedGameStatus: React.FC<JoinedGameStatusProps> = ({ game, onLeav
         <div className="mt-4">
           <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
             <span>Players Joined</span>
-            <span>{game.player_count}/{game.max_players}</span>
+            <span>{game.playerCount}/{game.maxPlayers}</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
             <div
               className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(game.player_count / game.max_players) * 100}%` }}
+              style={{ width: `${(game.playerCount / game.maxPlayers) * 100}%` }}
             ></div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import {
   db,
+  ensureAuth,
   generateMockPlayerId,
   generateGameCode,
   isValidGameCode,
@@ -719,6 +720,9 @@ export const useMultiplayerGame = () => {
   // Check for active game session for the current player
   const checkForActiveGame = useCallback(async () => {
     try {
+      // Ensure user is authenticated before querying
+      await ensureAuth()
+
       console.log('🔍 Checking for active game with mockPlayerId:', state.mockPlayerId)
 
       // Get all boards for this player (mock ID)

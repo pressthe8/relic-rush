@@ -4,12 +4,12 @@ import { Users, Clock, Trophy, Grid3x3 } from 'lucide-react'
 
 interface LobbyGame {
   id: string
-  game_code: string
-  scheduled_start_time: string
-  max_players: number
+  gameCode: string
+  scheduledStartTime: string
+  maxPlayers: number
   status: 'scheduled'
-  player_count: number
-  joined_players: string[]
+  playerCount: number
+  joinedPlayers: string[]
 }
 
 interface LobbyGameCardProps {
@@ -19,8 +19,8 @@ interface LobbyGameCardProps {
 }
 
 export const LobbyGameCard: React.FC<LobbyGameCardProps> = ({ game, onJoin, isJoining }) => {
-  const playersNeeded = game.max_players - game.player_count
-  const isFull = game.player_count >= game.max_players
+  const playersNeeded = game.maxPlayers - game.playerCount
+  const isFull = game.playerCount >= game.maxPlayers
 
   return (
     <div className="bg-white rounded-xl shadow-lg border border-emerald-200 overflow-hidden">
@@ -29,10 +29,10 @@ export const LobbyGameCard: React.FC<LobbyGameCardProps> = ({ game, onJoin, isJo
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-xl font-bold">Next Scheduled Game</h3>
-            <p className="text-emerald-100">Game Code: <span className="font-mono font-bold">{game.game_code}</span></p>
+            <p className="text-emerald-100">Game Code: <span className="font-mono font-bold">{game.gameCode}</span></p>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold">{game.player_count}/{game.max_players}</div>
+            <div className="text-2xl font-bold">{game.playerCount}/{game.maxPlayers}</div>
             <div className="text-emerald-100 text-sm">Players</div>
           </div>
         </div>
@@ -43,7 +43,7 @@ export const LobbyGameCard: React.FC<LobbyGameCardProps> = ({ game, onJoin, isJo
         {/* Countdown Timer */}
         <div className="text-center">
           <CountdownTimer
-            targetTime={game.scheduled_start_time}
+            targetTime={game.scheduledStartTime}
             onComplete={() => window.location.reload()}
           />
         </div>
@@ -73,8 +73,8 @@ export const LobbyGameCard: React.FC<LobbyGameCardProps> = ({ game, onJoin, isJo
             <span className="font-medium text-gray-800">Player Status</span>
             <Users className="w-5 h-5 text-gray-600" />
           </div>
-          
-          {game.player_count === 0 ? (
+
+          {game.playerCount === 0 ? (
             <p className="text-gray-600 text-sm">No players joined yet. Be the first!</p>
           ) : isFull ? (
             <p className="text-emerald-600 text-sm font-medium">Game is full! Starting soon...</p>
@@ -85,11 +85,11 @@ export const LobbyGameCard: React.FC<LobbyGameCardProps> = ({ game, onJoin, isJo
           )}
 
           {/* Player List Preview */}
-          {game.player_count > 0 && (
+          {game.playerCount > 0 && (
             <div className="mt-3">
               <div className="text-xs text-gray-500 mb-1">Joined Players:</div>
               <div className="flex flex-wrap gap-1">
-                {game.joined_players.slice(0, 3).map((playerId, index) => (
+                {game.joinedPlayers.slice(0, 3).map((playerId, index) => (
                   <span
                     key={playerId}
                     className="inline-block px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded"
@@ -97,9 +97,9 @@ export const LobbyGameCard: React.FC<LobbyGameCardProps> = ({ game, onJoin, isJo
                     Player {index + 1}
                   </span>
                 ))}
-                {game.player_count > 3 && (
+                {game.playerCount > 3 && (
                   <span className="inline-block px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
-                    +{game.player_count - 3} more
+                    +{game.playerCount - 3} more
                   </span>
                 )}
               </div>
@@ -128,7 +128,7 @@ export const LobbyGameCard: React.FC<LobbyGameCardProps> = ({ game, onJoin, isJo
           ) : isFull ? (
             'Game Full'
           ) : (
-            `Join Game (${game.player_count}/${game.max_players})`
+            `Join Game (${game.playerCount}/${game.maxPlayers})`
           )}
         </button>
 

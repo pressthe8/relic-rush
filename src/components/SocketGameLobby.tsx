@@ -1,7 +1,7 @@
 import React from 'react'
 import { useSocketLobby } from '../hooks/useSocketLobby'
 import { CountdownTimer } from './CountdownTimer'
-import { Users, RefreshCw, AlertCircle, Wifi, Grid3x3, Trophy, Clock } from 'lucide-react'
+import { Users, RefreshCw, AlertCircle, Wifi, Grid3x3, Trophy, Clock, User } from 'lucide-react'
 
 interface SocketGameLobbyProps {
   onGameStart: (sessionId: string) => void
@@ -17,12 +17,17 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart, a
     isJoining,
     isLeaving,
     error,
+    playerMockId,
     joinGame,
     leaveGame
   } = useSocketLobby(onGameStart)
 
+  // Track if auto-join has been performed to prevent re-joining after explicit leave
+  const hasAutoJoined = React.useRef(false)
+
   React.useEffect(() => {
-    if (currentGame && !hasJoined && !isJoining && autoJoin) {
+    if (currentGame && !hasJoined && !isJoining && autoJoin && !hasAutoJoined.current) {
+      hasAutoJoined.current = true
       joinGame();
     }
   }, [currentGame, hasJoined, isJoining, joinGame, autoJoin]);
@@ -34,6 +39,11 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart, a
       {isConnected ? 'Connected' : 'Connecting...'}
     </div>
   )
+
+  // Format player ID for display
+  const formatPlayerId = (id: string) => {
+    return id.replace('mock_player_', 'Player ')
+  }
 
   if (!isConnected) {
     return (
@@ -73,7 +83,13 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart, a
         <p className="text-gray-600">
           Join the next scheduled game or wait for more players to join
         </p>
-        <ConnectionStatus />
+        <div className="flex items-center justify-center gap-4">
+          <ConnectionStatus />
+          <div className="flex items-center gap-1 text-sm text-gray-500">
+            <User className="w-4 h-4" />
+            <span className="font-mono">{formatPlayerId(playerMockId)}</span>
+          </div>
+        </div>
       </div>
 
       {/* Error Display */}
@@ -99,6 +115,9 @@ export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart, a
             </div>
             <p className="text-emerald-700">
               Successfully joined game <span className="font-mono font-bold">{currentGame.gameCode}</span>
+            </p>
+            <p className="text-sm text-emerald-600">
+              Playing as <span className="font-mono font-semibold">{formatPlayerId(playerMockId)}</span>
             </p>
           </div>
 
