@@ -35,11 +35,17 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
   }
 
   // Total players = current player + other players
+  // Total players = current player + other players
   const totalPlayers = otherPlayers.length + 1
 
-  // Debug logging for sub-grid hints
-  console.log('🎮 MultiplayerBoard render - playerBoard.subGridHints:', playerBoard.subGridHints)
-  console.log('🎮 Has hints?', Object.keys(playerBoard.subGridHints || {}).length > 0)
+  // Helper for Battleship-style coordinates (A1, B3, etc.)
+  const formatPosition = (row: number, col: number) => {
+    const colLetter = String.fromCharCode(65 + col) // 0 -> A, 1 -> B
+    const rowNumber = row + 1 // 0 -> 1
+    return `${colLetter}${rowNumber}`
+  }
+
+  const columnLabels = Array.from({ length: boardSize }, (_, i) => String.fromCharCode(65 + i))
 
   return (
     <div className="w-full max-w-4xl space-y-6">
@@ -121,34 +127,50 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
         </div>
       </div>
 
-      {/* Game Board - Only show player's own board state with sub-grid hints */}
-      <div className="flex justify-center">
+      {/* Game Board with Integrated Labels */}
+      <div className="flex justify-center p-4">
         <div
-          className={`
-            grid gap-2 p-6 bg-emerald-950/10 rounded-xl shadow-inner
-            transition-all duration-300
-            ${isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}
-          `}
+          className="grid gap-2"
           style={{
-            gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
+            gridTemplateColumns: `auto repeat(${boardSize}, minmax(0, 1fr))`,
             width: '100%',
-            maxWidth: `${boardSize * 3.5}rem`
+            maxWidth: `${boardSize * 3.5 + 2}rem` // Add space for labels
           }}
         >
+          {/* Top-Left Corner Spacer */}
+          <div className="h-6 w-6"></div>
+
+          {/* Column Headers (A-F) */}
+          {columnLabels.map((label, i) => (
+            <div key={`col-${i}`} className="flex items-end justify-center font-bold text-emerald-800 pb-1">
+              {label}
+            </div>
+          ))}
+
+          {/* Grid Rows with Side Labels */}
           {playerBoard.boardState.map((row: any[], rowIndex: number) => (
-            row.map((square: any, colIndex: number) => (
-              <Square
-                key={`${rowIndex}-${colIndex}`}
-                square={square}
-                position={{ row: rowIndex, col: colIndex }}
-                gridSize={boardSize}
-                subGridHints={playerBoard.subGridHints || {}}
-                onClick={() => onDig({ row: rowIndex, col: colIndex })}
-                disabled={isLoading || playerBoard.remainingDigs <= 0}
-                isOpponentView={false}
-                showOwnDiscoveries={true}
-              />
-            ))
+            <React.Fragment key={`row-${rowIndex}`}>
+              {/* Row Label (1-6) */}
+              <div className="flex items-center justify-center font-bold text-emerald-800 pr-2">
+                {rowIndex + 1}
+              </div>
+
+              {/* Board Squares for this Row */}
+              {row.map((square: any, colIndex: number) => (
+                <div key={`${rowIndex}-${colIndex}`} className="aspect-square">
+                  <Square
+                    square={square}
+                    position={{ row: rowIndex, col: colIndex }}
+                    gridSize={boardSize}
+                    subGridHints={playerBoard.subGridHints || {}}
+                    onClick={() => onDig({ row: rowIndex, col: colIndex })}
+                    disabled={isLoading || playerBoard.remainingDigs <= 0}
+                    isOpponentView={false}
+                    showOwnDiscoveries={true}
+                  />
+                </div>
+              ))}
+            </React.Fragment>
           ))}
         </div>
       </div>
@@ -161,7 +183,7 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
             {playerBoard.discoveries.slice(-3).reverse().map((discovery: any, index: number) => (
               <div key={index} className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">
-                  Position ({discovery.row}, {discovery.col})
+                  Position <span className="font-bold font-mono text-emerald-700">{formatPosition(discovery.row, discovery.col)}</span>
                 </span>
                 <span className="font-medium text-amber-600">
                   +{discovery.points} points

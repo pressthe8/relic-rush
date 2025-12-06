@@ -6,16 +6,12 @@ interface GameFinaleProps {
   finalResults: PlayerBoard[]
   onPlayAgain: () => void
   onBackToMenu: () => void
-  gameStartTime?: string
-  gameEndTime?: string
 }
 
 export const GameFinale: React.FC<GameFinaleProps> = ({
   finalResults,
   onPlayAgain,
-  onBackToMenu,
-  gameStartTime,
-  gameEndTime
+  onBackToMenu
 }) => {
   const getPositionIcon = (position: number) => {
     switch (position) {
@@ -43,30 +39,7 @@ export const GameFinale: React.FC<GameFinaleProps> = ({
     }
   }
 
-  const formatGameTime = (startTime?: string, endTime?: string): string => {
-    if (!startTime || !endTime) return 'Unknown'
 
-    const start = new Date(startTime)
-    const end = new Date(endTime)
-    const durationMs = end.getTime() - start.getTime()
-
-    // Convert to seconds
-    const totalSeconds = Math.floor(durationMs / 1000)
-
-    // Calculate hours, minutes, seconds
-    const hours = Math.floor(totalSeconds / 3600)
-    const minutes = Math.floor((totalSeconds % 3600) / 60)
-    const seconds = totalSeconds % 60
-
-    // Format based on duration
-    if (hours > 0) {
-      return `${hours}h ${minutes}m ${seconds}s`
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds}s`
-    } else {
-      return `${seconds}s`
-    }
-  }
 
   const winner = finalResults[0]
   const hasMultiplePlayers = finalResults.length > 1
@@ -132,35 +105,6 @@ export const GameFinale: React.FC<GameFinaleProps> = ({
               </div>
             )
           })}
-        </div>
-      </div>
-
-      {/* Game Statistics */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Game Statistics</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-          <div className="space-y-1">
-            <div className="text-2xl font-bold text-emerald-600">{finalResults.length}</div>
-            <div className="text-sm text-gray-600">Players</div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-2xl font-bold text-amber-600">
-              {finalResults.reduce((sum, player) => sum + player.discoveries.length, 0)}
-            </div>
-            <div className="text-sm text-gray-600">Total Treasures</div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-2xl font-bold text-blue-600">
-              {Math.max(...finalResults.map(player => player.score))}
-            </div>
-            <div className="text-sm text-gray-600">Highest Score</div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-2xl font-bold text-purple-600">
-              {formatGameTime(gameStartTime, gameEndTime)}
-            </div>
-            <div className="text-sm text-gray-600">Game Time</div>
-          </div>
         </div>
       </div>
 
