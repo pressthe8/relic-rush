@@ -23,6 +23,9 @@
     - [x] Implement `archiveGame` with rich stats (Duration, Leaderboard)
     - [x] Add API endpoint for immediate archiving
     - [x] Implement "Safety Net" for zombie games
+- [x] Phase 4: Player Persistence
+    - [x] Implement `playerStats` aggregation in `archiveGame`
+    - [x] Add `GET /api/player-stats/:id` endpoint
 - **2025-06-06 19:11**: Fixed RLS infinite recursion by simplifying policies to allow public access for multiplayer functionality, resolving circular dependency issues
 - **2025-06-06 19:09**: Attempted to fix RLS infinite recursion in player_boards policies with non-recursive approach to prevent policy evaluation loops
 - **2025-06-06 19:08**: Fixed infinite recursion in game_sessions RLS policies by removing cross-table references that caused circular dependencies

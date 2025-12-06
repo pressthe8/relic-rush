@@ -684,6 +684,31 @@ const archiveGame = async (gameId, statusOverride = null) => {
 
     console.log(`📜 Archived game ${gameId} as ${status}`);
 
+    // Update Player Stats (Persistence)
+    const statsBatch = db.batch();
+
+    for (const player of players) {
+      if (!player.mockPlayerId) continue;
+
+      const statsRef = db.collection('playerStats').doc(player.mockPlayerId);
+      const isWinner = winner && winner.playerId === player.mockPlayerId;
+      const discoveriesCount = player.discoveries ? player.discoveries.length : 0;
+      const score = player.score || 0;
+
+      statsBatch.set(statsRef, {
+        playerId: player.mockPlayerId,
+        lastActive: new Date().toISOString(),
+        displayName: player.displayName || `Player ${player.mockPlayerId.substr(0, 6)}`, // Fallback or existing
+        gamesPlayed: admin.firestore.FieldValue.increment(1),
+        gamesWon: admin.firestore.FieldValue.increment(isWinner ? 1 : 0),
+        totalScore: admin.firestore.FieldValue.increment(score),
+        totalDiscoveries: admin.firestore.FieldValue.increment(discoveriesCount)
+      }, { merge: true });
+    }
+
+    await statsBatch.commit();
+    console.log(`👤 Updated stats for ${players.length} players`);
+
   } catch (error) {
     console.error(`❌ Failed to archive game ${gameId}:`, error);
   }
@@ -766,6 +791,21 @@ app.post('/api/archive-game', async (req, res) => {
   });
 
   res.json({ success: true, message: 'Archive process started' });
+});
+
+// Get player stats
+app.get('/api/player-stats/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const statsDoc = await db.collection('playerStats').doc(id).get();
+    if (!statsDoc.exists) {
+      return res.status(404).json({ error: 'Stats not found' });
+    }
+    res.json(statsDoc.data());
+  } catch (error) {
+    console.error(`❌ Failed to fetch stats for ${id}:`, error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Start server
