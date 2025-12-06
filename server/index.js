@@ -158,7 +158,8 @@ const startGame = async (gameId) => {
     await db.collection('gameSessions').doc(gameId).update({
       status: 'active',
       startTime: new Date().toISOString(),
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
+      startedPlayerCount: lobbyState.players.size
     });
 
     // Notify all players that the game is starting
@@ -535,6 +536,12 @@ const initializeLobby = async () => {
   console.log('🚀 Initializing lobby system...');
 
   try {
+    // 1. Run Purge First (Efficiency: Remove 24h+ dead games before checking hygiene)
+    await cleanupOldGames();
+
+    // Schedule cleanup to run every 24 hours
+    setInterval(cleanupOldGames, 24 * 60 * 60 * 1000);
+
     // Test Firebase connection
     await db.collection('gameSessions').limit(1).get();
     console.log('✅ Firebase connection successful');
@@ -604,13 +611,142 @@ const initializeLobby = async () => {
     // NOW create a fresh lobby game (ensureLobbyGame won't find any scheduled ones)
     lobbyState.currentGame = await ensureLobbyGame();
     setupGameTimer();
-
     lobbyState.isInitialized = true;
 
     console.log('✅ Lobby system initialized');
+
   } catch (error) {
     console.error('❌ Failed to initialize lobby system:', error);
     lobbyState.isInitialized = true; // Set to true even on error to avoid blocking
+  }
+};
+
+const cleanupOldGames = async () => {
+  console.log('🧹 Starting cleanup of old games...');
+  try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    // ----------------------------------------------------------------
+    // STEP A: Archive Completed Games (Keep Data Check)
+    // ----------------------------------------------------------------
+    const completedGamesSnapshot = await db.collection('gameSessions')
+      .where('status', '==', 'completed')
+      .where('lastUpdated', '<', twentyFourHoursAgo)
+      .get();
+
+    if (!completedGamesSnapshot.empty) {
+      console.log(`📦 Found ${completedGamesSnapshot.size} old COMPLETED games to archive`);
+      const batch = db.batch();
+
+      for (const doc of completedGamesSnapshot.docs) {
+        const game = doc.data();
+        let finalPlayerCount = game.startedPlayerCount;
+
+        // Fallback: If startedPlayerCount missing (old games), count playerBoards
+        if (finalPlayerCount === undefined) {
+          const playersSnapshot = await db.collection('playerBoards')
+            .where('sessionId', '==', doc.id)
+            .count()
+            .get();
+          finalPlayerCount = playersSnapshot.data().count;
+        }
+
+        const historyRef = db.collection('gameHistory').doc(doc.id);
+        batch.set(historyRef, {
+          gameId: doc.id,
+          gameCode: game.gameCode,
+          startedAt: game.startTime,
+          endedAt: game.endTime,
+          status: 'completed',
+          finalPlayerCount: finalPlayerCount || 0,
+          archivedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+
+      await batch.commit();
+      console.log(`✅ Archived ${completedGamesSnapshot.size} completed games`);
+    }
+
+    // ----------------------------------------------------------------
+    // STEP B: Archive & Delete Cancelled Games (Trash Collection)
+    // ----------------------------------------------------------------
+    const cancelledGamesSnapshot = await db.collection('gameSessions')
+      .where('status', '==', 'cancelled')
+      .where('lastUpdated', '<', twentyFourHoursAgo)
+      .get();
+
+    if (cancelledGamesSnapshot.empty) {
+      console.log('✅ No old cancelled games to cleanup');
+      return;
+    }
+
+    console.log(`🧹 Found ${cancelledGamesSnapshot.size} old CANCELLED games to archive and delete`);
+
+    // B1: Archive First
+    const archiveBatch = db.batch();
+    const gameIdsToDelete = [];
+
+    for (const doc of cancelledGamesSnapshot.docs) {
+      const game = doc.data();
+      gameIdsToDelete.push(doc.id);
+
+      let finalPlayerCount = game.startedPlayerCount;
+
+      // Fallback: If startedPlayerCount missing (lobby games or old games), count playerBoards
+      if (finalPlayerCount === undefined) {
+        const playersSnapshot = await db.collection('playerBoards')
+          .where('sessionId', '==', doc.id)
+          .count()
+          .get();
+        finalPlayerCount = playersSnapshot.data().count;
+      }
+
+      const historyRef = db.collection('gameHistory').doc(doc.id);
+      archiveBatch.set(historyRef, {
+        gameId: doc.id,
+        gameCode: game.gameCode,
+        startedAt: game.startTime || null,
+        endedAt: game.endTime || new Date().toISOString(),
+        status: 'cancelled',
+        finalPlayerCount: finalPlayerCount || 0,
+        archivedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+
+    await archiveBatch.commit();
+    console.log(`✅ Archived ${cancelledGamesSnapshot.size} cancelled games`);
+
+    // B2: Delete Children (Player Boards) FIRST
+    let totalBoardsDeleted = 0;
+    for (const gameId of gameIdsToDelete) {
+      const playersSnapshot = await db.collection('playerBoards')
+        .where('sessionId', '==', gameId)
+        .get();
+
+      if (!playersSnapshot.empty) {
+        const deleteBatch = db.batch();
+        playersSnapshot.docs.forEach(doc => {
+          deleteBatch.delete(doc.ref);
+        });
+        await deleteBatch.commit();
+        totalBoardsDeleted += playersSnapshot.size;
+      }
+    }
+    console.log(`✅ Deleted ${totalBoardsDeleted} player boards from cancelled games`);
+
+    // B3: Delete Parents (Game Sessions) LAST
+    const deleteGameBatch = db.batch();
+    cancelledGamesSnapshot.docs.forEach(doc => {
+      deleteGameBatch.delete(doc.ref);
+    });
+
+    await deleteGameBatch.commit();
+    console.log(`✅ Deleted ${cancelledGamesSnapshot.size} cancelled game sessions`);
+
+    console.log(`✅ Cleanup complete`);
+
+  } catch (error) {
+    console.error('❌ Error during game cleanup:', error);
   }
 };
 
