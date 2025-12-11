@@ -679,6 +679,9 @@ const archiveGame = async (gameId, statusOverride = null) => {
       finalPlayerCount,
       winner,
       leaderboard,
+      // Preserve for future replay/analytics
+      treasurePositions: game.treasurePositions || [],
+      allDiscoveries: game.allDiscoveries || [],
       archivedAt: new Date().toISOString()
     }, { merge: true });
 
