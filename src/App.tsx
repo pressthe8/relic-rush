@@ -46,11 +46,10 @@ function GameApp() {
       </div>}
       {betweenHunts ? <section aria-labelledby="between-hunts-heading" className="game-panel my-4 w-full max-w-2xl px-5 py-10 text-center sm:px-10 sm:py-14">
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-700"><Gem size={34} aria-hidden="true" /></div>
-        <p className="stage-kicker">Small windows. Big discoveries.</p>
-        <h1 id="between-hunts-heading" className="stage-heading mt-3">The next hunt awaits.</h1>
-        <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-gray-600">Relic Rush opens for limited play windows. Six explorers, ten digs, and a board full of hidden treasure. When the lobby opens, every dig counts.</p>
-        <p className="mt-5 text-sm font-semibold text-emerald-800">No lobby available right now. Come back for the next rush.</p>
-        <button className="game-button mt-7" onClick={game.reconnect}>Check for a lobby</button>
+        <h1 id="between-hunts-heading" className="stage-heading">The next hunt awaits.</h1>
+        <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-gray-600">Relic Rush currently opens for limited play windows only.<br />Sign up for announcements, or try your luck another time.<br />We look forward to seeing you for the next rush.</p>
+        <button className="game-button mt-7" disabled aria-describedby="signup-coming-soon">Sign up / Login</button>
+        <p id="signup-coming-soon" className="mt-2 text-xs text-gray-600">Coming soon</p>
       </section> : introduction ? <GameIntroduction matchSeconds={game.lobby?.matchSeconds} onEnterLobby={() => setIntroduction(false)} /> : finished ?
         <GameFinale finalResults={session.finalResults || []} completionReason={session.completionReason} currentPlayerId={game.uid}
           onPlayAgain={game.resetGame} onBackToMenu={() => { game.resetGame(); setIntroduction(true) }} /> :

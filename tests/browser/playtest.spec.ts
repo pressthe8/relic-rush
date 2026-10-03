@@ -217,9 +217,10 @@ test('unavailable lobby welcomes visitors and can reconnect', async ({ browser }
     await expect(page.getByRole('alert')).toHaveCount(0)
     await expect(page.getByText('Loading the next lobby…')).toHaveCount(0)
     await expect(page.getByRole('link', { name: /How to play/ })).toHaveAttribute('target', '_blank')
+    await expect(page.getByRole('button', { name: 'Sign up / Login' })).toBeDisabled()
+    await expect(page.getByText('Coming soon', { exact: true })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
     await page.unroute('**/socket.io/**')
-    await page.getByRole('button', { name: 'Check for a lobby' }).click()
     await expect(page.getByRole('button', { name: 'Join game', exact: true })).toBeEnabled()
     await expect(page.getByRole('heading', { name: 'The next hunt awaits.' })).toHaveCount(0)
   } finally {
