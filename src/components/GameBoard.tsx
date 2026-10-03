@@ -1,9 +1,9 @@
 import React from 'react';
 import { Square } from './Square';
-import { GameState } from '../types';
+import { PlayerState } from '../types';
 
 interface GameBoardProps {
-  gameState: GameState;
+  gameState: PlayerState;
   onDig: (row: number, col: number) => void;
   isOpponentView?: boolean;
   isActive?: boolean;

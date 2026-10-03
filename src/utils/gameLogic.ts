@@ -15,6 +15,9 @@ export const createInitialBoard = (size: number): Square[][] => {
 };
 
 export const generateTreasurePositions = (size: number, count: number): Position[] => {
+  if (!Number.isInteger(size) || size < 1 || !Number.isInteger(count) || count < 0 || count > size * size) {
+    throw new Error("Invalid treasure count or board size");
+  }
   const positions: Position[] = [];
   const usedPositions = new Set<string>();
 
@@ -33,7 +36,7 @@ export const generateTreasurePositions = (size: number, count: number): Position
 };
 
 export const placeTreasures = (board: Square[][], positions: Position[]): Square[][] => {
-  const newBoard = board.map(row => [...row]);
+  const newBoard = board.map(row => row.map(square => ({ ...square })));
   positions.forEach(({ row, col }) => {
     newBoard[row][col].isTreasure = true;
   });

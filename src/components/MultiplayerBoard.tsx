@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Square } from './Square'
 import { PlayerBoard } from '../lib/firebase'
 import { Users, Trophy, Shovel, Copy, Check, Hash, Loader2 } from 'lucide-react'
@@ -14,6 +14,8 @@ interface MultiplayerBoardProps {
   onDig: (position: Position) => void
   isLoading: boolean
   gameCode?: string
+  deadline?: string
+  clockOffset?: number
 }
 
 export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
@@ -21,9 +23,18 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
   otherPlayers,
   onDig,
   isLoading,
-  gameCode
+  gameCode,
+  deadline,
+  clockOffset = 0
 }) => {
   const [copied, setCopied] = useState(false)
+  const [expired, setExpired] = useState(false)
+  useEffect(() => {
+    const update = () => setExpired(!!deadline && Date.now() + clockOffset >= Date.parse(deadline))
+    update()
+    const timer = setInterval(update, 250)
+    return () => clearInterval(timer)
+  }, [deadline, clockOffset])
   const boardSize = playerBoard.boardState.length
 
   const handleCopyGameCode = async () => {
@@ -52,12 +63,12 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
       {/* Game Code Display */}
       {gameCode && (
         <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Hash className="w-5 h-5 text-emerald-600" />
               <span className="font-medium text-emerald-800">Game Code:</span>
             </div>
-            <div className="flex items-center gap-2 flex-1 min-w-0 justify-center">
+            <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0 justify-center">
               <div className="text-2xl font-bold text-emerald-700 tracking-wider bg-white px-4 py-2 rounded-lg border-2 border-emerald-300">
                 {gameCode}
               </div>
@@ -71,7 +82,7 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
             </div>
           </div>
           <p className="text-sm text-emerald-700 mt-2 text-center">
-            Share this <strong>6-character game code</strong> with other players to invite them to your game.
+            This match has started. New players can join the next lobby.
           </p>
         </div>
       )}
@@ -156,7 +167,7 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
           ))}
 
           {/* Grid Rows with Side Labels */}
-          {playerBoard.boardState.map((row: any[], rowIndex: number) => (
+          {playerBoard.boardState.map((row, rowIndex: number) => (
             <React.Fragment key={`row-${rowIndex}`}>
               {/* Row Label (1-6) */}
               <div className="flex items-center justify-center font-bold text-emerald-800 pr-2">
@@ -164,7 +175,7 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
               </div>
 
               {/* Board Squares for this Row */}
-              {row.map((square: any, colIndex: number) => (
+              {row.map((square, colIndex: number) => (
                 <div key={`${rowIndex}-${colIndex}`} className="aspect-square">
                   <Square
                     square={square}
@@ -172,7 +183,7 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
                     gridSize={boardSize}
                     subGridHints={playerBoard.subGridHints || {}}
                     onClick={() => onDig({ row: rowIndex, col: colIndex })}
-                    disabled={isLoading || playerBoard.remainingDigs <= 0}
+                    disabled={isLoading || expired || playerBoard.remainingDigs <= 0}
                     isOpponentView={false}
                     showOwnDiscoveries={true}
                   />
@@ -188,7 +199,7 @@ export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
         <div className="p-4 bg-white rounded-xl shadow-lg">
           <h3 className="font-semibold text-gray-800 mb-3">Your Discoveries</h3>
           <div className="space-y-2">
-            {playerBoard.discoveries.slice(-3).reverse().map((discovery: any, index: number) => (
+            {playerBoard.discoveries.slice(-3).reverse().map((discovery, index: number) => (
               <div key={index} className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">
                   Position <span className="font-bold font-mono text-emerald-700">{formatPosition(discovery.row, discovery.col)}</span>

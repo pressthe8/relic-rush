@@ -3,19 +3,20 @@ import { Gem, Users, Trophy, Map, Zap, Target } from 'lucide-react'
 
 interface GameIntroductionProps {
   onEnterLobby: () => void
+  matchSeconds?: number
 }
 
-export const GameIntroduction: React.FC<GameIntroductionProps> = ({ onEnterLobby }) => {
+export const GameIntroduction: React.FC<GameIntroductionProps> = ({ onEnterLobby, matchSeconds = 120 }) => {
   return (
     <div className="w-full max-w-4xl space-y-8">
       {/* Hero Section */}
       <div className="text-center space-y-6">
         <div className="space-y-4">
           <h2 className="text-3xl md:text-4xl font-bold text-gray-800 leading-tight">
-            Strategic Treasure Hunting Adventure
+            A Quick Treasure Hunt
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Compete with friends to discover hidden relics while managing limited resources and using strategic intelligence to maximize your treasure discoveries.
+            Find five hidden relics on a 6×6 board. You have ten digs and {matchSeconds >= 60 ? `${matchSeconds / 60} minutes` : `${matchSeconds} seconds`} to earn the highest score.
           </p>
         </div>
         
@@ -38,7 +39,7 @@ export const GameIntroduction: React.FC<GameIntroductionProps> = ({ onEnterLobby
             <h3 className="text-lg font-semibold text-gray-800">Multiplayer Competition</h3>
           </div>
           <p className="text-gray-600 text-sm">
-            Join friends with simple 6-character game codes. Race to find treasures first for maximum points while competing on the same treasure layout.
+            Join the same lobby as your friends. Race to find treasures first for maximum points while competing on the same treasure layout.
           </p>
         </div>
 
@@ -78,8 +79,8 @@ export const GameIntroduction: React.FC<GameIntroductionProps> = ({ onEnterLobby
                 1
               </div>
               <div>
-                <h4 className="font-semibold text-gray-800 mb-1">Create or Join Game</h4>
-                <p className="text-gray-600 text-sm">Start a new game and share the code, or join an existing game with a friend's code.</p>
+                <h4 className="font-semibold text-gray-800 mb-1">Join the Lobby</h4>
+                <p className="text-gray-600 text-sm">Games start when six players join, or when the countdown ends with at least two players. Everyone can press Ready to start sooner.</p>
               </div>
             </div>
 

@@ -1,4 +1,4 @@
-import { Discovery } from '../lib/firebase'
+import type { Discovery } from '../lib/firebase'
 import { SubGridHints } from '../types'
 import { getSubGridIndex } from './subGridUtils'
 
@@ -11,10 +11,6 @@ export const calculateSubGridHintsFromCentralLog = (
   currentPlayerId: string,
   gridSize: number
 ): SubGridHints => {
-  console.log('🗺️ Calculating hints from central log...')
-  console.log('All discoveries:', allDiscoveries)
-  console.log('Current player:', currentPlayerId)
-  console.log('Grid size:', gridSize)
 
   const hints: SubGridHints = {}
 
@@ -58,10 +54,6 @@ export const calculateSubGridHintsFromCentralLog = (
       }
     })
 
-    console.log(`Sub-grid ${subGridIndex}:`)
-    console.log(`  Others found positions: [${Array.from(otherPlayersPositions).join(', ')}]`)
-    console.log(`  I found positions: [${Array.from(myPositions).join(', ')}]`)
-    console.log(`  Discovery gap: ${discoveryGap}`)
 
     // Only show hint if there's a gap (others have found treasures I haven't)
     if (discoveryGap > 0) {
@@ -69,6 +61,5 @@ export const calculateSubGridHintsFromCentralLog = (
     }
   })
 
-  console.log('Final calculated hints:', hints)
   return hints
 }

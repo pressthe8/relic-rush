@@ -45,7 +45,7 @@ export const Square: React.FC<SquareProps> = ({
 
   const getHoverTitle = () => {
     if (!isOpponentView && square.isRevealed && square.isTreasure && showOwnDiscoveries) {
-      return `Found ${square.discoveryCount} times - Next find worth ${Math.max(0, 100 - (square.discoveryCount - 1) * 20)} points`;
+      return `Discovery #${square.discoveryCount} - Earned ${Math.max(0, 100 - (square.discoveryCount - 1) * 20)} points`;
     }
     return '';
   };
@@ -60,16 +60,12 @@ export const Square: React.FC<SquareProps> = ({
   const intensityClass = shouldShowHints ? getHintIntensityClass(hintIntensity) : '';
   const borderClasses = shouldShowHints ? getBorderClasses(borders, intensityClass) : '';
 
-  // Debug logging only for squares with hints
-  if (shouldShowHints) {
-    console.log(`🎯 Square (${position.row}, ${position.col}) - Sub-grid ${subGridIndex}, Intensity: ${hintIntensity}, Revealed: ${square.isRevealed}`);
-  }
-
   // Determine if we should show the diamond icon
   const shouldShowDiamond = square.isRevealed && square.isTreasure && showOwnDiscoveries && !isOpponentView;
 
   return (
     <button
+      aria-label={`${String.fromCharCode(65 + position.col)}${position.row + 1}${square.isRevealed ? square.isTreasure ? ": treasure" : ": empty" : ": dig"}`}
       onClick={onClick}
       disabled={disabled || (isOpponentView ? false : square.isRevealed)}
       title={getHoverTitle()}

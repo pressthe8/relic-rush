@@ -1,231 +1,71 @@
 # Relic Rush
 
-A strategic treasure hunting game where players dig for hidden relics while managing limited resources and competing for high scores through intelligent gameplay and tactical decision-making.
+A quick competitive treasure hunt for 2–6 invited players. The supported playtest mode uses a 6×6 grid, five shared treasures, ten initial digs, and two-minute matches. Each treasure grants a bonus dig. Discoveries earn 100, 80, 60, 40, 20, then zero points according to the order players find that treasure. Heat-map hints show unique treasures opponents have found in a region that you have not yet found.
 
-## Game Overview
+## Lobby and match flow
 
-Relic Rush is an engaging treasure hunting game that combines resource management, strategic thinking, and competitive multiplayer elements. Players must carefully balance risk and reward while using environmental clues to maximize their treasure discoveries on a grid-based board.
+The lobby has a ten-minute countdown. It starts when six players join, when the countdown expires with at least two players, or when at least two players have joined and everyone presses **Ready**. Readiness is optional; it does not block the other start conditions. New players begin unready. A new lobby appears immediately after a match starts, and spectators stay there.
 
-## Core Game Mechanics
+With fewer than two players at countdown expiry, the session is cancelled and replaced. A waiting player who disconnects is removed from that lobby's membership; reconnecting can join again. Multiple tabs share a guest identity, and closing one tab does not remove a player while another tab stays connected.
 
-### Board and Setup
-- **Dynamic Grid Sizes**: Choose from 6x6, 9x9, or 12x12 grids for varying complexity
-- **Treasure Distribution**: Configurable treasure count (1 to 1/3 of total squares)
-- **Resource Management**: Limited dig attempts with strategic bonus mechanics
-- **Real-time Multiplayer**: Shared treasure layouts with competitive scoring
+Matches end after 120 seconds or when everyone exhausts their digs. Scores earned before the deadline remain valid. Refreshing or reconnecting restores progress with the original deadline. Returning after expiry shows results. Equal scores share a rank. **Play Again** returns to the next lobby.
 
-### Digging and Discovery System
-- **Dig Consumption**: Each dig attempt consumes one action from your limited pool
-- **Treasure Rewards**: Finding treasure grants both points AND a bonus dig attempt
-- **Progressive Scoring**: Treasure values decrease based on discovery order:
-  - **1st Discovery**: 100 points (maximum reward)
-  - **2nd Discovery**: 80 points 
-  - **3rd Discovery**: 60 points
-  - **4th Discovery**: 40 points
-  - **5th Discovery**: 20 points
-  - **6th+ Discovery**: 0 points (no reward)
+## Local setup with the existing development project
 
-### Strategic Intelligence System
+Use Node.js 22 or newer and npm. No production Firebase project is required.
 
-#### Discovery Gap Hints
-The game features an innovative "heat map" system that provides strategic intelligence:
+1. Run `npm ci`.
+2. Copy `.env.example` to `.env` if needed, retaining the existing development project's client settings. Supply its Firebase Admin service-account email and private key. Keep `.env` private. Never place Admin credentials in variables starting with `VITE_`.
+3. Enable Firebase Anonymous Authentication and Firestore in the development project.
+4. Apply the checked-in `firestore.rules` to that project before inviting testers. Clients subscribe to sessions and boards; the Admin server performs writes. The new rules intentionally deny client writes. Old frontend builds that write directly to Firestore should be retired when these rules are applied. Do not reset or delete the database.
+5. Run `npm run dev`, then open the displayed Vite URL. Vite proxies the socket connection to the Node server on port 3001.
 
-- **Sub-Grid Analysis**: The board is divided into 9 sub-regions (3x3 grid)
-- **Discovery Gap Logic**: Hints show areas where other players have found more treasures than you
-- **Visual Intensity**: Border colors and intensity increase with the "discovery gap"
-  - **Yellow**: 1 more discovery than you in this area
-  - **Orange**: 2 more discoveries than you
-  - **Red**: 3 more discoveries than you  
-  - **Dark Red**: 4+ more discoveries than you
+Timing can be set in `.env`:
 
-#### Hint Intelligence Strategy
-- **Information Gathering**: Use other players' discoveries to identify treasure-rich areas
-- **Risk Assessment**: Balance early aggressive digging vs. waiting for intelligence
-- **Adaptive Hints**: Hints disappear when they become irrelevant (you've caught up in discoveries)
-- **Strategic Timing**: Decide when to act on hints vs. when to explore new areas
-
-## Game Modes
-
-### Single Player Mode
-- **Solo Exploration**: Focus on efficient treasure hunting without competition
-- **Practice Mode**: Perfect your strategy and learn the mechanics
-- **Mock 2-Player**: Test multiplayer dynamics locally with alternating turns
-
-### Multiplayer Mode
-- **Shared Treasure Layout**: All players hunt the same treasure positions
-- **Competitive Scoring**: Race to find treasures first for maximum points
-- **Real-time Updates**: See other players' progress and adapt your strategy
-- **Game Codes**: Simple 6-character codes (e.g., "ABC123") for easy game joining
-- **Automatic Timeouts**: Games auto-cancel if inactive (30min waiting, 2hrs active)
-
-## Strategic Depth
-
-### Early Game Decisions
-- **Aggressive Start**: Risk early digs for 100-point treasures before others find them
-- **Conservative Approach**: Wait for hint intelligence to develop before committing resources
-- **Balanced Strategy**: Mix early exploration with hint-based targeting
-
-### Mid-Game Adaptation
-- **Hint Utilization**: Use discovery gap information to identify promising areas
-- **Resource Conservation**: Manage remaining digs carefully as opportunities decrease
-- **Competitive Awareness**: Track other players' progress and adjust tactics
-
-### End Game Optimization
-- **Efficient Targeting**: Focus on areas with the highest probability of undiscovered treasures
-- **Point Maximization**: Prioritize treasures that still offer meaningful points
-- **Risk Management**: Balance potential rewards against remaining dig attempts
-
-## Technical Features
-
-### Real-time Multiplayer Infrastructure
-- **Firebase Firestore**: Real-time NoSQL database with instant synchronization
-- **Native WebSocket Listeners**: Built-in real-time updates via onSnapshot()
-- **Anonymous Authentication**: Secure serverless authentication
-- **Automatic Game Management**: Session creation, player joining, and completion detection
-
-### Responsive Design
-- **Cross-Device Compatibility**: Optimized for desktop, tablet, and mobile play
-- **Adaptive Grid Scaling**: Board automatically adjusts to screen size
-- **Touch-Friendly Interface**: Intuitive controls for all device types
-
-### Performance Optimizations
-- **Real-time Listeners**: Instant updates via WebSocket connections (no polling)
-- **Local State Management**: Immediate UI feedback with database synchronization
-- **Optimized Rendering**: Smooth animations and transitions
-
-## Game Flow
-
-### Session Creation
-1. **Host Setup**: Configure grid size, treasure count, and dig attempts
-2. **Code Generation**: Receive unique 6-character game code
-3. **Player Invitation**: Share code with other players for joining
-
-### Active Gameplay
-1. **Strategic Planning**: Analyze board and available information
-2. **Dig Execution**: Make calculated moves based on risk/reward assessment
-3. **Hint Analysis**: Use discovery gap intelligence to guide future moves
-4. **Adaptive Strategy**: Adjust tactics based on other players' discoveries
-
-### Game Completion
-1. **Automatic Detection**: Game ends when all players exhaust their dig attempts
-2. **Final Scoring**: Players ranked by total points accumulated
-3. **Statistics Display**: Comprehensive game analysis and performance metrics
-4. **Replay Options**: Start new games or return to main menu
-
-## Winning Strategies
-
-### Information Advantage
-- **Pattern Recognition**: Learn to read hint patterns effectively
-- **Timing Optimization**: Know when to act on hints vs. when to explore independently
-- **Resource Allocation**: Balance exploration with targeted digging
-
-### Competitive Psychology
-- **Early Pressure**: Apply pressure with aggressive early moves
-- **Misdirection**: Use your discoveries to influence others' strategies
-- **Patience Rewards**: Sometimes waiting for better information pays off
-
-### Risk Management
-- **Calculated Risks**: Weigh potential 100-point rewards against dig cost
-- **Fallback Plans**: Always have alternative areas to explore
-- **Endgame Efficiency**: Maximize final dig attempts when competition is fierce
-
-## Getting Started
-
-### Prerequisites
-- Node.js (v16 or higher)
-- npm or yarn package manager
-- Firebase account and project (for multiplayer features)
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd relic-rush
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Configure Firebase**
-   
-   a. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
-   
-   b. Enable **Anonymous Authentication**:
-      - Go to Authentication → Sign-in method
-      - Enable "Anonymous" provider
-      
-   c. Create **Firestore Database**:
-      - Go to Firestore Database → Create database
-      - Start in production mode
-      - Apply security rules (see below)
-   
-   d. Get your Firebase configuration:
-      - Project Settings → Web app
-      - Copy configuration values
-   
-   e. Create a `.env` file in the project root:
-      ```env
-      # Firebase Client (Web)
-      VITE_FIREBASE_API_KEY=your-api-key
-      VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-      VITE_FIREBASE_PROJECT_ID=your-project-id
-      VITE_FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
-      VITE_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
-      VITE_FIREBASE_APP_ID=your-app-id
-      VITE_FIREBASE_MEASUREMENT_ID=your-measurement-id
-      
-      # Firebase Server (Admin SDK) - for Socket.IO server
-      FIREBASE_PROJECT_ID=your-project-id
-      FIREBASE_CLIENT_EMAIL=your-service-account-email
-      FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-      ```
-   
-   f. Apply Firestore Security Rules:
-      ```javascript
-      rules_version = '2';
-      service cloud.firestore {
-        match /databases/{database}/documents {
-          match /gameSessions/{sessionId} {
-            allow read, write: if request.auth != null;
-          }
-          match /playerBoards/{playerId} {
-            allow read, write: if request.auth != null;
-          }
-        }
-      }
-      ```
-
-### Running the Application
-
-Start the development server (includes both frontend and Socket.IO):
-```bash
-npm run dev
+```env
+LOBBY_DURATION_SECONDS=600
+MATCH_DURATION_SECONDS=120
+PORT=3001
 ```
 
-This will start:
-- Frontend client on port 5173 (or next available port)
-- Socket.IO server integrated with Vite (same port)
+Restart after changing these values. They apply to newly created lobbies; already-created lobbies and active deadlines retain their settings.
 
-The Socket.IO server is now automatically integrated with the Vite development server, so you only need to run one command to get the full multiplayer experience.
+Anonymous Firebase authentication supplies identity without a login screen. Browser storage retains that identity and the last selected session. Clearing browser storage creates a new guest. Older mock-player history is preserved and is not automatically assigned to the new Firebase guest identity.
 
-### Playing the Game
+## Hosting an invited playtest
 
-1. **Choose game mode**: Single player for practice, multiplayer for competition
-2. **Configure settings**: Adjust grid size and treasure count to your preference
-3. **Join game lobby**: For multiplayer, use the Socket.IO-powered game lobby
-4. **Start hunting**: Begin your strategic treasure hunting adventure!
+Run `npm ci`, `npm run build`, then `npm start` on a Node host that supports long-lived WebSocket connections. The server serves `dist/` and Socket.IO from the same origin. Supply the development Firebase client variables at build time and Admin credentials at runtime. The host can set `PORT`; `/health` returns HTTP 200 only when the game service is healthy.
 
-### Troubleshooting
+Run **one Node instance** for this milestone. Durable transactions prevent duplicate starts and moves, while connection presence is maintained in that instance. Deploying this repository does not require creating a production Firebase project.
 
-If you encounter connection errors:
-1. Verify Anonymous Authentication is enabled in Firebase Console
-2. Check that Firestore security rules are applied
-3. Ensure `.env` file has correct Firebase credentials
-4. Restart the development server (`npm run dev`)
+For separate frontend/server hosts, set `VITE_SERVER_URL` before building and set `CLIENT_ORIGIN` on the server to that exact frontend origin. No server address is hardcoded in the frontend.
 
-## Contributing
+## Verification
 
-Contributions are welcome! The game's modular architecture makes it easy to add new features, game modes, or strategic elements. Please read our contributing guidelines before submitting pull requests.
+```sh
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+The emulator checks require a Firebase CLI on your path, Java 21+, and Chromium for Playwright:
+
+```sh
+npm install --global firebase-tools
+npx playwright install chromium
+npm run test:emulators
+npm run test:playtest
+```
+
+Both emulator commands explicitly use the fake project **demo-relic-rush**, not the development database. Integration tests refuse to run without both emulators. Browser tests run the frontend and server with demo configuration and shortened timers to exercise expiry quickly; integration checks verify the actual 120-second default. Do not run emulator suites against an existing shared emulator session: the integration suite resets the demo database between tests.
+
+Tests cover scoring, independent board copies, unique treasure placement, hints, readiness and capacity races, spectators, simultaneous discoveries, duplicate moves, disconnects, multiple tabs, recovery, deadline expiry, early completion, ties, archive retries, and server restart. Browser checks exercise two- and six-player flows, a mobile viewport, slower requests, refresh, reconnect, results, and replay. Failure traces and screenshots are written to `.test-results/`.
+
+## Data and recovery
+
+New sessions have `schemaVersion: 2`; they retain the existing collections and add lifecycle fields, a persisted lobby pointer, guest ownership, fixed participant IDs, deadlines, accepted-move counts, and retry identifiers. Legacy records are left intact. Server startup restores version-two sessions without cancelling them or restarting their clocks. Waiting memberships get ten seconds to reconnect after a restart; absent guests are then removed.
+
+History and aggregate stats are written in a single transaction with an archive marker. Retrying cannot double-count a match. Source sessions and boards are retained, including when archiving fails. Archive failures are retried by the maintenance loop and after restart. A future retention policy is tracked in [ROADMAP.md](ROADMAP.md).
+
+This release is intended for invited testers. Hidden board information is still present in client-readable Firestore state; public integrity hardening and dependency maintenance are tracked in the roadmap.

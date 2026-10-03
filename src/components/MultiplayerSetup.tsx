@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { GameSettings, GridSize } from '../types'
-import { Settings, Users, User, Grid2x2, Plus, LogIn, Copy, Check, AlertCircle, Clock } from 'lucide-react'
+import { Settings, Grid2x2, Plus, LogIn, Copy, Check, AlertCircle, Clock } from 'lucide-react'
 import { isValidGameCode } from '../lib/firebase'
 
 interface MultiplayerSetupProps {
@@ -69,7 +69,6 @@ export const MultiplayerSetup: React.FC<MultiplayerSetupProps> = ({
     onJoinGame(trimmedCode)
   }
 
-  console.log('MultiplayerSetup render - gameCode:', gameCode)
 
   return (
     <div className="w-full max-w-2xl p-6 bg-white rounded-xl shadow-lg">

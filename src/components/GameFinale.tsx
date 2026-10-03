@@ -1,17 +1,19 @@
 import React from 'react'
 import { Trophy, Medal, Award, RotateCcw, ArrowLeft } from 'lucide-react'
-import { PlayerBoard } from '../lib/firebase'
+import type { FinalResult } from '../lib/firebase'
 
 interface GameFinaleProps {
-  finalResults: PlayerBoard[]
+  finalResults: FinalResult[]
   onPlayAgain: () => void
   onBackToMenu: () => void
+  completionReason?: string
 }
 
 export const GameFinale: React.FC<GameFinaleProps> = ({
   finalResults,
   onPlayAgain,
-  onBackToMenu
+  onBackToMenu,
+  completionReason
 }) => {
   const getPositionIcon = (position: number) => {
     switch (position) {
@@ -41,7 +43,7 @@ export const GameFinale: React.FC<GameFinaleProps> = ({
 
 
 
-  const winner = finalResults[0]
+  const winners = finalResults.filter(player => player.score === finalResults[0]?.score)
   const hasMultiplePlayers = finalResults.length > 1
 
   return (
@@ -51,14 +53,15 @@ export const GameFinale: React.FC<GameFinaleProps> = ({
         <div className="flex justify-center">
           <Trophy className="w-16 h-16 text-yellow-500" />
         </div>
-        <h1 className="text-4xl font-bold text-gray-800">Game Complete!</h1>
+        <h1 className="text-4xl font-bold text-gray-800">{completionReason === 'not-enough-players' ? 'Game Cancelled' : 'Game Complete!'}</h1>
+        <p className="text-gray-600">{completionReason === 'deadline' ? 'Time is up! Here are your final scores.' : completionReason === 'not-enough-players' ? 'At least two players are needed. A new lobby is ready.' : 'Everyone has used their digs.'}</p>
         {hasMultiplePlayers ? (
           <p className="text-xl text-gray-600">
-            🎉 Congratulations to <span className="font-bold text-yellow-600">{winner.mockPlayerId}</span> for winning!
+            {winners.length > 1 ? 'Joint winners: ' : 'Winner: '}<span className="font-bold text-yellow-600">{winners.map(player => player.mockPlayerId).join(', ')}</span>
           </p>
         ) : (
           <p className="text-xl text-gray-600">
-            Great job exploring! You scored <span className="font-bold text-amber-600">{winner.score}</span> points.
+            {finalResults.length ? <>You scored <span className="font-bold text-amber-600">{finalResults[0].score}</span> points.</> : 'Return to the lobby to join the next game.'}
           </p>
         )}
       </div>
@@ -70,8 +73,8 @@ export const GameFinale: React.FC<GameFinaleProps> = ({
         </div>
 
         <div className="p-6 space-y-3">
-          {finalResults.map((player, index) => {
-            const position = index + 1
+          {finalResults.map((player) => {
+            const position = player.rank || finalResults.findIndex(other => other.score === player.score) + 1
             const isWinner = position === 1 && hasMultiplePlayers
 
             return (
