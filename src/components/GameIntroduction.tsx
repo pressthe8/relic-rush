@@ -4,9 +4,10 @@ import { Gem, Users, Trophy, Map, Zap, Target } from 'lucide-react'
 interface GameIntroductionProps {
   onEnterLobby: () => void
   matchSeconds?: number
+  referenceOnly?: boolean
 }
 
-export const GameIntroduction: React.FC<GameIntroductionProps> = ({ onEnterLobby, matchSeconds = 120 }) => {
+export const GameIntroduction: React.FC<GameIntroductionProps> = ({ onEnterLobby, matchSeconds = 120, referenceOnly = false }) => {
   return (
     <div className="w-full max-w-4xl space-y-8">
       {/* Hero Section */}
@@ -25,7 +26,7 @@ export const GameIntroduction: React.FC<GameIntroductionProps> = ({ onEnterLobby
           className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-emerald-600 to-amber-600 text-white text-lg font-semibold rounded-xl shadow-lg hover:from-emerald-700 hover:to-amber-700 transform hover:scale-105 transition-all duration-200"
         >
           <Users className="w-6 h-6" />
-          Enter Game Lobby
+          {referenceOnly ? 'Close instructions' : 'Enter Game Lobby'}
         </button>
       </div>
 
@@ -162,10 +163,10 @@ export const GameIntroduction: React.FC<GameIntroductionProps> = ({ onEnterLobby
           className="inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-emerald-600 to-amber-600 text-white text-xl font-bold rounded-xl shadow-xl hover:from-emerald-700 hover:to-amber-700 transform hover:scale-105 transition-all duration-200"
         >
           <Gem className="w-7 h-7" />
-          Start Your Treasure Hunt
+          {referenceOnly ? 'Close instructions' : 'Start Your Treasure Hunt'}
         </button>
         <p className="text-gray-500 text-sm mt-3">
-          Ready to discover hidden relics and compete with friends?
+          {referenceOnly ? 'Your game remains open in the original tab.' : 'Ready to discover hidden relics and compete with friends?'}
         </p>
       </div>
     </div>

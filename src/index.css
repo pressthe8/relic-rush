@@ -2,91 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Sub-grid hint styles for treasure discovery heat map */
+@layer base {
+  body { @apply m-0 text-gray-800; }
+  button, a { -webkit-tap-highlight-color: transparent; }
+  button:focus-visible, a:focus-visible { @apply outline outline-2 outline-offset-2 outline-emerald-700; }
+}
+
 @layer components {
-  /* Intensity Level 1 - Light Yellow */
-  .subgrid-hint-1-top {
-    border-top: 4px solid #fbbf24 !important;
-    background: linear-gradient(to bottom, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.1) 100%) !important;
-  }
-  .subgrid-hint-1-bottom {
-    border-bottom: 4px solid #fbbf24 !important;
-    background: linear-gradient(to top, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.1) 100%) !important;
-  }
-  .subgrid-hint-1-left {
-    border-left: 4px solid #fbbf24 !important;
-    background: linear-gradient(to right, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.1) 100%) !important;
-  }
-  .subgrid-hint-1-right {
-    border-right: 4px solid #fbbf24 !important;
-    background: linear-gradient(to left, rgba(251, 191, 36, 0.2) 0%, rgba(251, 191, 36, 0.1) 100%) !important;
-  }
+  .game-panel { @apply min-w-0 rounded-xl border border-emerald-200 bg-white shadow-sm; }
+  .game-button, .game-button-secondary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold transition-colors disabled:opacity-50; }
+  .game-button { @apply bg-emerald-700 text-white hover:bg-emerald-800; }
+  .game-button-secondary { @apply border border-gray-200 bg-white text-gray-800 hover:bg-gray-50; }
+  .you-badge { @apply inline-block whitespace-nowrap rounded bg-emerald-700 px-1.5 py-0.5 align-middle text-[10px] font-semibold leading-none text-white; }
+  .stage-heading { @apply text-2xl font-bold tracking-tight text-gray-800 sm:text-3xl; }
+  .stage-kicker { @apply mb-2 text-xs font-semibold uppercase tracking-widest text-emerald-800; }
+  .own-player { @apply bg-emerald-50; }
+  .match-layout { display:grid; grid-template-areas:"hud" "board" "note" "standings"; grid-template-columns:minmax(0,1fr); align-items:start; }
+  .match-hud { grid-area:hud; }
+  .match-board { grid-area:board; }
+  .match-note { grid-area:note; }
+  .match-standings { grid-area:standings; }
+  .standings-table { @apply w-full table-fixed border-collapse text-sm; }
+  .standings-table thead th { @apply px-2 pb-3 text-left text-xs font-normal text-gray-600; }
+  .standings-table tbody td, .standings-table tbody th { @apply border-t border-emerald-100 px-2 py-4; }
+  .standings-table tbody th { @apply text-left text-xs font-semibold; overflow-wrap: anywhere; }
+  .standings-table th:first-child, .standings-table td:first-child { @apply w-8 pl-3 pr-1 text-center font-normal text-gray-600; }
+  .standings-table th:nth-last-child(2), .standings-table td:nth-last-child(2) { @apply w-14 text-right tabular-nums; }
+  .standings-table th:last-child, .standings-table td:last-child { @apply w-12 pr-3 text-right tabular-nums; }
+  .standings-table .own-player td:first-child { box-shadow: inset 3px 0 #047857; }
+  .subgrid-hint-1 { background-color: #fef3c7; }
+  .subgrid-hint-2 { background-color: #fed7aa; }
+  .subgrid-hint-3 { background-color: #fecaca; }
+  .subgrid-hint-4 { background-color: #fca5a5; }
+}
 
-  /* Intensity Level 2 - Orange */
-  .subgrid-hint-2-top {
-    border-top: 4px solid #f97316 !important;
-    background: linear-gradient(to bottom, rgba(249, 115, 22, 0.3) 0%, rgba(249, 115, 22, 0.15) 100%) !important;
-  }
-  .subgrid-hint-2-bottom {
-    border-bottom: 4px solid #f97316 !important;
-    background: linear-gradient(to top, rgba(249, 115, 22, 0.3) 0%, rgba(249, 115, 22, 0.15) 100%) !important;
-  }
-  .subgrid-hint-2-left {
-    border-left: 4px solid #f97316 !important;
-    background: linear-gradient(to right, rgba(249, 115, 22, 0.3) 0%, rgba(249, 115, 22, 0.15) 100%) !important;
-  }
-  .subgrid-hint-2-right {
-    border-right: 4px solid #f97316 !important;
-    background: linear-gradient(to left, rgba(249, 115, 22, 0.3) 0%, rgba(249, 115, 22, 0.15) 100%) !important;
-  }
-
-  /* Intensity Level 3 - Red */
-  .subgrid-hint-3-top {
-    border-top: 5px solid #dc2626 !important;
-    background: linear-gradient(to bottom, rgba(220, 38, 38, 0.4) 0%, rgba(220, 38, 38, 0.2) 100%) !important;
-  }
-  .subgrid-hint-3-bottom {
-    border-bottom: 5px solid #dc2626 !important;
-    background: linear-gradient(to top, rgba(220, 38, 38, 0.4) 0%, rgba(220, 38, 38, 0.2) 100%) !important;
-  }
-  .subgrid-hint-3-left {
-    border-left: 5px solid #dc2626 !important;
-    background: linear-gradient(to right, rgba(220, 38, 38, 0.4) 0%, rgba(220, 38, 38, 0.2) 100%) !important;
-  }
-  .subgrid-hint-3-right {
-    border-right: 5px solid #dc2626 !important;
-    background: linear-gradient(to left, rgba(220, 38, 38, 0.4) 0%, rgba(220, 38, 38, 0.2) 100%) !important;
-  }
-
-  /* Intensity Level 4+ - Dark Red */
-  .subgrid-hint-4-top {
-    border-top: 5px solid #991b1b !important;
-    background: linear-gradient(to bottom, rgba(153, 27, 27, 0.5) 0%, rgba(153, 27, 27, 0.25) 100%) !important;
-  }
-  .subgrid-hint-4-bottom {
-    border-bottom: 5px solid #991b1b !important;
-    background: linear-gradient(to top, rgba(153, 27, 27, 0.5) 0%, rgba(153, 27, 27, 0.25) 100%) !important;
-  }
-  .subgrid-hint-4-left {
-    border-left: 5px solid #991b1b !important;
-    background: linear-gradient(to right, rgba(153, 27, 27, 0.5) 0%, rgba(153, 27, 27, 0.25) 100%) !important;
-  }
-  .subgrid-hint-4-right {
-    border-right: 5px solid #991b1b !important;
-    background: linear-gradient(to left, rgba(153, 27, 27, 0.5) 0%, rgba(153, 27, 27, 0.25) 100%) !important;
-  }
-
-  /* Combined hint styles for squares with multiple borders */
-  .subgrid-hint-1 {
-    background: rgba(251, 191, 36, 0.15) !important;
-  }
-  .subgrid-hint-2 {
-    background: rgba(249, 115, 22, 0.2) !important;
-  }
-  .subgrid-hint-3 {
-    background: rgba(220, 38, 38, 0.25) !important;
-  }
-  .subgrid-hint-4 {
-    background: rgba(153, 27, 27, 0.3) !important;
-  }
+@media (min-width:768px) {
+  .match-layout { grid-template-areas:"hud standings" "board standings" "note standings"; grid-template-columns:minmax(0,1fr) minmax(260px,.75fr); column-gap:20px; }
 }

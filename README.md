@@ -40,6 +40,26 @@ Run **one Node instance** for this milestone. Durable transactions prevent dupli
 
 For separate frontend/server hosts, set `VITE_SERVER_URL` before building and set `CLIENT_ORIGIN` on the server to that exact frontend origin. No server address is hardcoded in the frontend.
 
+### Cloudflare Pages and Cloud Run play windows
+
+The `Dockerfile` builds only the Node server. Upload allowlists exclude local credentials, Git history, and the frontend. Cloud Run uses its attached service account via Application Default Credentials; do not upload Firebase private keys. The server identity needs `roles/datastore.user` on the development project.
+
+The development service is `relic-rush-server` in `us-central1`, close to the existing `nam5` Firestore database. Use one manually scaled instance with CPU allocated between requests and a 3600-second connection timeout. Socket.IO reconnects when Cloud Run closes an expired connection. `CLIENT_ORIGIN` accepts a comma-separated list of permitted frontend origins. Use the stable branch preview URL when testing newer Pages builds.
+
+Open a play window:
+
+```sh
+gcloud run services update relic-rush-server --project relic-rush-dev --region us-central1 --scaling=1
+```
+
+After the last match finishes, close the window:
+
+```sh
+gcloud run services update relic-rush-server --project relic-rush-dev --region us-central1 --scaling=0
+```
+
+Manual scaling to zero disables the service; visitors cannot wake it. Firestore records remain intact and expired matches are settled at the next startup. Instance compute is billed while the window is open; builds, image storage, Firestore, and network usage have separate charges. Set Pages' preview `VITE_SERVER_URL` to the Cloud Run HTTPS URL and rebuild the preview. Never set emulator variables on either hosted service.
+
 ## Verification
 
 ```sh

@@ -47,6 +47,7 @@ export interface GameSession {
   id: string
   gameCode: string
   gridSize: number
+  matchSeconds?: number
   status: 'scheduled' | 'active' | 'completed' | 'cancelled'
   allDiscoveries: Discovery[]
   participants: Record<string, { ready: boolean; joinedAt: string }>

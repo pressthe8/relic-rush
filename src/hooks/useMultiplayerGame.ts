@@ -4,6 +4,7 @@ import { auth, initializeAuth, subscribeToGameSession, subscribeToPlayerBoards }
 import type { GameSession, PlayerBoard } from '../lib/firebase'
 import type { Position } from '../types'
 import { calculateSubGridHintsFromCentralLog } from '../utils/centralHintUtils'
+import { liveStandings, personalStanding } from '../utils/standings'
 
 export interface LobbyGame {
   id: string
@@ -158,7 +159,10 @@ export function useMultiplayerGame() {
     ...player, subGridHints: calculateSubGridHintsFromCentralLog(session.allDiscoveries || [], uid, session.gridSize)
   } : null
   const membership = lobby?.players.find(player => player.id === uid)
+  const standings = liveStandings(boards, session?.status === 'active' ? session.participantIds : [])
+  const currentRank = personalStanding(standings, uid)?.rank ?? null
   return { uid, lobby, session, sessionId, playerBoard, otherPlayers: boards.filter(board => board.playerId !== uid),
+    standings, currentRank,
     connected, loading, busy, error, clockOffset, hasJoined: !!membership, ready: membership?.ready || false,
     pendingMove, joinGame, leaveGame, setReady, dig, resetGame, reconnect,
     retryMove: () => { if (pendingMove) void sendMove(pendingMove) } }
