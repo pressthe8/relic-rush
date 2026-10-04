@@ -36,8 +36,10 @@ test('two players ready up, dig, refresh, reconnect, time out, and replay on mob
     await a.getByRole('button', { name: 'A1: dig', exact: true }).click()
     await expect(a.getByRole('button', { name: /^A1: (empty|treasure)$/ })).toBeVisible()
     await expect(a.getByRole('timer')).toBeInViewport()
+    const guestName = await a.getByTestId('current-player').innerText()
     await a.reload()
     await expect(a.getByRole('button', { name: /^A1: (empty|treasure)$/ })).toBeVisible()
+    await expect(a.getByTestId('current-player')).toHaveText(guestName)
     await contexts[1].setOffline(true)
     await expect(b.getByRole('alert')).toContainText('Connection lost')
     await contexts[1].setOffline(false)
@@ -226,4 +228,62 @@ test('unavailable lobby welcomes visitors and can reconnect', async ({ browser }
   } finally {
     await context.close()
   }
+})
+
+test('a transient read permission failure recovers without dropping waiting membership', async ({ browser }) => {
+  const context = await browser.newContext()
+  const page = await context.newPage()
+  try {
+    // Fail the first subscription, as a temporarily unavailable auth token would.
+    await page.route('**/src/lib/firebase.ts', async route => {
+      const response = await route.fetch()
+      let source = await response.text()
+      source = source.replaceAll('subscribeToGameSession', 'originalSubscribeToGameSession')
+      source += `\nlet failedOnce = false;\nexport const subscribeToGameSession = (...args) => { if (!failedOnce) { failedOnce = true; queueMicrotask(() => args[2](Object.assign(new Error('Missing or insufficient permissions.'), {code:'permission-denied'}))); return () => {}; } return originalSubscribeToGameSession(...args); };\n`
+      await route.fulfill({ response, body: source })
+    })
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Join game', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Ready', exact: true })).toBeEnabled()
+    await expect(page.getByRole('alert')).toHaveCount(0, { timeout: 10000 })
+    await expect(page.getByText('Connection lost. Reconnecting…')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Leave game', exact: true }).click()
+  } finally { await context.close() }
+})
+
+test('touch digs keep committed progress when an older board update arrives', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+  const opponentContext = await browser.newContext()
+  const mobile = await context.newPage()
+  const opponent = await opponentContext.newPage()
+  const db = (admin.apps.length ? admin.app() : admin.initializeApp({ projectId: 'demo-relic-rush' })).firestore()
+  try {
+    for (const page of [mobile, opponent]) {
+      await page.goto('/')
+      await page.getByRole('button', { name: 'Join game', exact: true }).click()
+      await page.getByRole('button', { name: 'Ready', exact: true }).click()
+    }
+    await expect(mobile.getByRole('button', { name: 'A1: dig', exact: true })).toBeEnabled()
+    const uid = await mobile.getByRole('table', { name: 'Leaderboard' }).locator('[aria-current="true"]').getAttribute('data-player-id')
+    const games = await db.collection('gameSessions').where('status', '==', 'active').get()
+    const game = games.docs.find(doc => doc.data().participantIds.includes(uid))!
+    await game.ref.update({ deadline: new Date(Date.now() + 60000).toISOString() })
+    const ref = db.collection('playerBoards').doc(`${game.id}_${uid}`)
+    const original = (await ref.get()).data()!
+    await mobile.getByRole('button', { name: 'A1: dig', exact: true }).tap()
+    const revealed = mobile.getByRole('button', { name: /^A1: (empty|treasure)$/ })
+    await expect(revealed).toBeDisabled()
+    const committed = (await ref.get()).data()!
+    // Reproduce a stale snapshot arriving after the socket acknowledgement.
+    await ref.update({ boardState: original.boardState, acceptedMoves: 0, remainingDigs: 10 })
+    await expect(revealed).toBeVisible()
+    await mobile.waitForTimeout(500)
+    await expect(revealed).toBeDisabled()
+    await ref.update(committed)
+    await expect(mobile.getByRole('alert')).toHaveCount(0)
+    const untouched = mobile.getByRole('button', { name: 'B1: dig', exact: true })
+    const fill = await untouched.evaluate(el => getComputedStyle(el).backgroundColor)
+    await untouched.dispatchEvent('mouseover')
+    expect(await untouched.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(fill)
+  } finally { await context.close(); await opponentContext.close() }
 })

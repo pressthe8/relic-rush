@@ -39,7 +39,7 @@ function GameApp() {
       <div className="flex flex-col items-center gap-5">
       {game.error && !betweenHunts && <div role="alert" className="w-full max-w-2xl rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
         <p>{game.error}</p>
-        <button className="mt-2 underline" onClick={game.reconnect}>Reconnect</button>
+        <button className="mt-2 underline" onClick={game.errorKind === 'action' && game.connected ? game.dismissError : game.reconnect}>{game.errorKind === 'action' && game.connected ? 'Dismiss' : game.errorKind === 'data' && game.connected ? 'Retry game updates' : 'Reconnect'}</button>
       </div>}
       {game.pendingMove && !game.busy && session?.status === 'active' && <div role="status" className="rounded-lg bg-amber-50 p-4 text-amber-900">
         A dig is awaiting confirmation. <button disabled={!game.connected} className="underline" onClick={game.retryMove}>Retry dig</button>

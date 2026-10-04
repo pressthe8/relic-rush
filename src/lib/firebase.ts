@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getAuth, signInAnonymously, connectAuthEmulator } from 'firebase/auth'
+import { getAuth, signInAnonymously, connectAuthEmulator, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import { getFirestore, connectFirestoreEmulator, doc, collection, query, where, onSnapshot } from 'firebase/firestore'
 import type { Square, Position, SubGridHints } from '../types'
 
@@ -19,6 +19,10 @@ let authentication: Promise<string> | null = null
 export const initializeAuth = (): Promise<string> => {
   authentication ||= (async () => {
     await auth.authStateReady()
+    // Use explicit local persistence, including browsers with unreliable IndexedDB.
+    // Do not silently create a session-only identity when durable storage fails.
+    try { await setPersistence(auth, browserLocalPersistence) }
+    catch { throw new Error('Your browser could not save your guest sign-in. Allow site storage, then retry.') }
     return (auth.currentUser || (await signInAnonymously(auth)).user).uid
   })().catch(error => { authentication = null; throw error })
   return authentication

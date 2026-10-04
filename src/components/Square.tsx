@@ -40,7 +40,7 @@ export const Square: React.FC<SquareProps> = ({
     }
     
     // Only unrevealed squares can show hint styling
-    return 'bg-emerald-100 hover:bg-emerald-200';
+    return 'bg-emerald-100';
   };
 
   const getHoverTitle = () => {
@@ -73,7 +73,9 @@ export const Square: React.FC<SquareProps> = ({
         w-full aspect-square rounded-lg border-2 border-emerald-950/10
         ${shouldShowHints ? intensityClass : getBackgroundColor()}
         transform transition-all duration-200
-        ${!disabled && !square.isRevealed ? 'hover:scale-95' : ''}
+        ${!disabled && !square.isRevealed ? '[@media(hover:hover)_and_(pointer:fine)]:hover:scale-95' : ''}
+        ${!disabled && !square.isRevealed && !shouldShowHints ? '[@media(hover:hover)_and_(pointer:fine)]:hover:bg-emerald-200' : ''}
+        touch-manipulation
         focus:outline-none focus:ring-2 focus:ring-amber-500
         disabled:cursor-default
         flex items-center justify-center

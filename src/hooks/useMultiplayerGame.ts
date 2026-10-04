@@ -5,6 +5,7 @@ import type { GameSession, PlayerBoard } from '../lib/firebase'
 import type { Position } from '../types'
 import { calculateSubGridHintsFromCentralLog } from '../utils/centralHintUtils'
 import { liveStandings, personalStanding } from '../utils/standings'
+import { mergeBoardUpdates } from '../utils/boardUpdates'
 
 export interface LobbyGame {
   id: string
@@ -25,11 +26,15 @@ export function useMultiplayerGame() {
   const socket = useRef<Socket | null>(null)
   const locked = useRef(false)
   const selectedSession = useRef<string | null>(null)
+  const subscriptionRetries = useRef(0)
   const [uid, setUid] = useState('')
   const [connected, setConnected] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [errorKind, setErrorKind] = useState<'connection' | 'data' | 'action'>('connection')
+  const errorKindRef = useRef(errorKind)
+  errorKindRef.current = errorKind
   const [lobby, setLobby] = useState<LobbyGame | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [session, setSession] = useState<GameSession | null>(null)
@@ -53,6 +58,7 @@ export function useMultiplayerGame() {
     else localStorage.removeItem(`relic_rush_session_${playerId}`)
     if (selectedSession.current !== id) {
       selectedSession.current = id
+      subscriptionRetries.current = 0
       setSessionId(id)
       setSession(null)
       setBoards([])
@@ -90,8 +96,8 @@ export function useMultiplayerGame() {
             setLoading(false)
           } catch (error) { if (!disposed) { setError((error as Error).message); setLoading(false) } }
         })
-        client.on('disconnect', () => { setConnected(false); setError('Connection lost. Reconnecting…') })
-        client.on('connect_error', (error: Error) => { setConnected(false); setLoading(false); setError(error.message) })
+        client.on('disconnect', () => { setConnected(false); setErrorKind('connection'); setError('Connection lost. Reconnecting…') })
+        client.on('connect_error', (error: Error) => { setConnected(false); setLoading(false); setErrorKind('connection'); setError(error.message) })
       } catch (error) { if (!disposed) { setError((error as Error).message); setLoading(false) } }
     }
     void connect()
@@ -99,23 +105,54 @@ export function useMultiplayerGame() {
   }, [request, openSession])
 
   useEffect(() => {
-    if (!sessionId) return
-    const failed = (error: Error) => { setError(error.message); setLoading(false) }
+    if (!sessionId || !uid || auth.currentUser?.uid !== uid) return
+    let disposed = false
+    let retrying = false
+    let sessionLoaded = false
+    let boardsLoaded = false
+    const clearDataError = () => {
+      if (sessionLoaded && boardsLoaded) setError(current => errorKindRef.current === 'data' ? null : current)
+    }
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    const failed = (error: Error & { code?: string }) => {
+      if (disposed || retrying) return
+      setErrorKind('data')
+      setLoading(false)
+      if (['permission-denied', 'unauthenticated'].includes(error.code || '') && subscriptionRetries.current < 2) {
+        retrying = true
+        subscriptionRetries.current++
+        setError('Refreshing access to your game…')
+        retryTimer = setTimeout(() => {
+          void auth.currentUser?.getIdToken(true).then(() => {
+            if (!disposed) setSubscriptionRevision(value => value + 1)
+          }).catch(() => { if (!disposed) setError('Unable to load game updates. Retry game updates to continue.') })
+        }, subscriptionRetries.current * 500)
+      } else setError('Unable to load game updates. Retry game updates to continue.')
+    }
     const timer = setTimeout(() => failed(new Error('Game data is taking too long to load. Please reconnect.')), 10000)
     const stopSession = subscribeToGameSession(sessionId, game => {
+      if (disposed || retrying) return
       clearTimeout(timer)
       setSession(game)
+      sessionLoaded = !!game
+      clearDataError()
       if (!game) failed(new Error('This game is no longer available. Return to the lobby.'))
     }, failed)
-    const stopBoards = subscribeToPlayerBoards(sessionId, setBoards, failed)
-    return () => { clearTimeout(timer); stopSession(); stopBoards() }
-  }, [sessionId, subscriptionRevision])
+    const stopBoards = subscribeToPlayerBoards(sessionId, incoming => {
+      if (disposed || retrying) return
+      setBoards(current => mergeBoardUpdates(current, incoming))
+      boardsLoaded = true
+      clearDataError()
+    }, failed)
+    return () => { disposed = true; clearTimeout(timer); clearTimeout(retryTimer); stopSession(); stopBoards() }
+  }, [sessionId, uid, subscriptionRevision])
 
   const action = useCallback(async (event: string, data: object, after?: (data: { sessionId: string }) => void) => {
     if (locked.current) return
     locked.current = true
     setBusy(true)
     setError(null)
+    setErrorKind('action')
     try { const result = await request<{ sessionId: string }>(event, data); after?.(result) }
     catch (error) { setError((error as Error).message) }
     finally { locked.current = false; setBusy(false) }
@@ -128,10 +165,15 @@ export function useMultiplayerGame() {
     locked.current = true
     setBusy(true)
     setError(null)
+    setErrorKind('action')
     setPendingMove(move)
     sessionStorage.setItem(pendingKey, JSON.stringify(move))
     try {
-      await request('dig', move)
+      const result = await request<{ board?: Omit<PlayerBoard, 'boardState'> & { boardState: PlayerBoard['boardState'] | string } }>('dig', move)
+      if (result.board && selectedSession.current === move.sessionId) {
+        const board = { ...result.board, boardState: typeof result.board.boardState === 'string' ? JSON.parse(result.board.boardState) : result.board.boardState } as PlayerBoard
+        setBoards(current => mergeBoardUpdates(current, [board]))
+      }
       sessionStorage.removeItem(pendingKey)
       setPendingMove(null)
     } catch (error) {
@@ -142,6 +184,8 @@ export function useMultiplayerGame() {
   }, [request])
   const dig = (position: Position) => {
     if (session?.status !== 'active' || pendingMove || !sessionId) return
+    const board = boards.find(board => board.playerId === uid)
+    if (!board || board.remainingDigs <= 0 || board.boardState[position.row]?.[position.col]?.isRevealed) return
     void sendMove({ ...position, sessionId, requestId: crypto.randomUUID() })
   }
   const resetGame = () => {
@@ -151,6 +195,12 @@ export function useMultiplayerGame() {
     setError(null)
   }
   const reconnect = () => {
+    if (socket.current?.connected) {
+      subscriptionRetries.current = 0
+      setError(null)
+      setSubscriptionRevision(value => value + 1)
+      return
+    }
     if (socket.current) socket.current.disconnect().connect()
     else window.location.reload()
   }
@@ -163,7 +213,7 @@ export function useMultiplayerGame() {
   const currentRank = personalStanding(standings, uid)?.rank ?? null
   return { uid, lobby, session, sessionId, playerBoard, otherPlayers: boards.filter(board => board.playerId !== uid),
     standings, currentRank,
-    connected, loading, busy, error, clockOffset, hasJoined: !!membership, ready: membership?.ready || false,
+    connected, loading, busy, error, errorKind, dismissError: () => setError(null), clockOffset, hasJoined: !!membership, ready: membership?.ready || false,
     pendingMove, joinGame, leaveGame, setReady, dig, resetGame, reconnect,
     retryMove: () => { if (pendingMove) void sendMove(pendingMove) } }
 }

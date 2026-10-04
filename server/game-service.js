@@ -163,7 +163,7 @@ export class GameService {
       const previous = player.processedMoves?.[requestId];
       if (previous) {
         if (previous.row !== row || previous.col !== col) throw new GameError('Move identifier was already used.');
-        return { duplicate: true, completed: game.status === 'completed' };
+        return { duplicate: true, completed: game.status === 'completed', board: { id: refs[index].id, ...player } };
       }
       const now = this.now();
       if (game.status !== 'active' || now >= Date.parse(game.deadline)) throw new GameError('This match has ended.');
@@ -197,7 +197,7 @@ export class GameService {
         allDiscoveries, acceptedMoves: (game.acceptedMoves || 0) + 1, lastUpdated: iso(now),
         ...(finished ? this.finishPatch(allPlayers, 'digs-exhausted', now) : {})
       });
-      return { duplicate: false, completed: finished };
+      return { duplicate: false, completed: finished, board: { id: refs[index].id, ...updated } };
     });
     if (result.completed) this.pendingArchives.add(sessionId);
     return result;

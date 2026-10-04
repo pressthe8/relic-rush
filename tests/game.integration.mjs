@@ -96,7 +96,12 @@ test('duplicate requests and rapid same-player moves do not overspend or overwri
   const empty = Array.from({ length: 36 }, (_, i) => ({ row: Math.floor(i / 6), col: i % 6 }))
     .filter(p => !game.treasurePositions.some(t => t.row === p.row && t.col === p.col));
   const request = move(id, 'request-duplicate', empty[0]);
-  await Promise.all([service.dig('alice', request), service.dig('alice', request)]);
+  const replies = await Promise.all([service.dig('alice', request), service.dig('alice', request)]);
+  for (const reply of replies) {
+    assert.equal(reply.board.acceptedMoves, 1);
+    assert.equal(reply.board.remainingDigs, 9);
+    assert.equal(JSON.parse(reply.board.boardState)[empty[0].row][empty[0].col].isRevealed, true);
+  }
   await Promise.all([service.dig('alice', move(id, 'request-move-2', empty[1])), service.dig('alice', move(id, 'request-move-3', empty[2]))]);
   const board = await readBoard(id, 'alice');
   assert.equal(board.remainingDigs, 7);
