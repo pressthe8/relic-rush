@@ -13,7 +13,7 @@ export interface LobbyGame {
   scheduledStartTime: string
   maxPlayers: number
   matchSeconds: number
-  players: { id: string; ready: boolean }[]
+  players: { id: string; ready: boolean; displayName?: string }[]
 }
 type Reply<T> = { ok: boolean; data: T; error?: string; retryable?: boolean }
 class RequestError extends Error {
@@ -28,6 +28,7 @@ export function useMultiplayerGame() {
   const selectedSession = useRef<string | null>(null)
   const subscriptionRetries = useRef(0)
   const [uid, setUid] = useState('')
+  const [displayName, setDisplayName] = useState<string | undefined>()
   const [connected, setConnected] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -73,6 +74,7 @@ export function useMultiplayerGame() {
         const playerId = await initializeAuth()
         if (disposed) return
         setUid(playerId)
+        setDisplayName(auth.currentUser?.displayName || undefined)
         client = io(import.meta.env.VITE_SERVER_URL || undefined, {
           auth: callback => { auth.currentUser?.getIdToken().then(token => callback({ token })).catch(() => callback({})) },
           reconnection: true, reconnectionDelay: 500, reconnectionDelayMax: 3000
@@ -211,7 +213,7 @@ export function useMultiplayerGame() {
   const membership = lobby?.players.find(player => player.id === uid)
   const standings = liveStandings(boards, session?.status === 'active' ? session.participantIds : [])
   const currentRank = personalStanding(standings, uid)?.rank ?? null
-  return { uid, lobby, session, sessionId, playerBoard, otherPlayers: boards.filter(board => board.playerId !== uid),
+  return { uid, displayName, lobby, session, sessionId, playerBoard, otherPlayers: boards.filter(board => board.playerId !== uid),
     standings, currentRank,
     connected, loading, busy, error, errorKind, dismissError: () => setError(null), clockOffset, hasJoined: !!membership, ready: membership?.ready || false,
     pendingMove, joinGame, leaveGame, setReady, dig, resetGame, reconnect,

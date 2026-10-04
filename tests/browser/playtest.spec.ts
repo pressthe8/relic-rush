@@ -1,5 +1,6 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
 import admin from 'firebase-admin'
+import { generateGuestName } from '../../src/utils/guestNames'
 
 async function guests(browser: Browser, count: number) {
   const contexts: BrowserContext[] = []
@@ -24,7 +25,7 @@ test('two players ready up, dig, refresh, reconnect, time out, and replay on mob
     await a.getByRole('button', { name: 'Join game', exact: true }).click()
     await b.getByRole('button', { name: 'Join game', exact: true }).click()
     await expect(a.getByRole('region', { name: 'Lobby players' }).locator('.own-player')).toContainText('You')
-    await expect(a.getByTestId('current-player')).toContainText('Player ')
+    await expect(a.getByTestId('current-player')).toHaveText(/^[A-Za-z]+-[A-Za-z0-9]{6}$/)
     await a.getByRole('button', { name: 'Ready', exact: true }).click()
     await b.getByRole('button', { name: 'Ready', exact: true }).click()
     await expect(a.getByText('Time left', { exact: true })).toBeVisible()
@@ -82,12 +83,12 @@ test('bright UX: live rankings, fill hints, mobile sizes, zero digs, and persona
       expect(await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
     }
     await mobile.screenshot({ path: testInfo.outputPath('bright-mobile-lobby.png'), fullPage: true })
-    await contexts[0].grantPermissions(['clipboard-read', 'clipboard-write'])
-    await mobile.getByRole('button', { name: 'Copy', exact: true }).click()
-    await expect(mobile.getByRole('status')).toHaveText('Copied!')
-    await mobile.evaluate(() => Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: () => Promise.reject(new Error('Clipboard blocked')) }))
-    await mobile.getByRole('button', { name: 'Copy', exact: true }).click()
-    await expect(mobile.getByRole('status')).toContainText('Couldn’t copy.')
+    await expect(mobile.getByRole('button', { name: 'Copy', exact: true })).toHaveCount(0)
+    await expect(mobile.getByTestId('current-player')).not.toContainText('You')
+    for (const width of [320, 375, 390]) {
+      await mobile.setViewportSize({ width, height: 540 })
+      await expect(mobile.getByRole('button', { name: 'Join game', exact: true })).toBeInViewport({ ratio: 1 })
+    }
     for (const page of pages) await page.getByRole('button', { name: 'Join game', exact: true }).click()
     await expect(mobile.getByText('Time left', { exact: true })).toBeVisible()
     const own = mobile.getByRole('table', { name: 'Leaderboard' }).locator('[aria-current="true"]')
@@ -145,8 +146,9 @@ test('bright UX: live rankings, fill hints, mobile sizes, zero digs, and persona
     await expect(mobile.getByRole('button', { name: 'A1: treasure', exact: true })).not.toHaveClass(/subgrid-hint/)
     await expect(mobile.getByRole('button', { name: 'B2: empty', exact: true })).not.toHaveClass(/subgrid-hint/)
     for (const width of [320, 375, 390]) {
-      await mobile.setViewportSize({ width, height: 844 })
+      await mobile.setViewportSize({ width, height: 540 })
       await mobile.evaluate(() => window.scrollTo(0, 0))
+      await expect(mobile.getByLabel('Dig board', { exact: true })).toBeInViewport({ ratio: 1 })
       await expect(mobile.getByTestId('mobile-rank')).toBeVisible()
       expect(await mobile.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
       await mobile.getByRole('table', { name: 'Leaderboard' }).locator('tbody tr').last().scrollIntoViewIfNeeded()
@@ -159,7 +161,7 @@ test('bright UX: live rankings, fill hints, mobile sizes, zero digs, and persona
     await self.ref.update({ score: 300, remainingDigs: 0 })
     await expect(mobile.getByTestId('mobile-rank')).toHaveText('1st')
     await expect(own.locator('[data-stat="digs"]')).toHaveText('0')
-    await expect(mobile.getByText('All digs used. Follow the standings.')).toBeVisible()
+    await expect(mobile.getByRole('heading', { name: 'All digs used!' })).toBeVisible()
     await expect(mobile.getByRole('button', { name: 'C1: dig', exact: true })).toBeDisabled()
     await expect(desktop.getByRole('table', { name: 'Leaderboard' }).locator(`[data-player-id="${uid}"] [data-stat="score"]`)).toHaveText('300')
 
@@ -177,6 +179,9 @@ test('bright UX: live rankings, fill hints, mobile sizes, zero digs, and persona
       acceptedMoves: 10, digsUsed: 10, rank: i === 0 ? 3 : i < 3 ? 1 : 4 }))
     await game.ref.update({ status: 'completed', completionReason: 'deadline', finalResults })
     await expect(mobile.getByRole('heading', { name: 'You finished 3rd' })).toBeVisible()
+    await expect(mobile.getByRole('region', { name: 'Your result' })).not.toContainText('Player')
+    await expect(mobile.getByText('Hunt complete', { exact: true })).toHaveCount(0)
+    await expect(mobile.getByRole('button', { name: 'Back to Home' })).toBeVisible()
     await expect(mobile.getByRole('table', { name: 'Final standings' }).locator('[aria-current="true"] [data-stat="score"]')).toHaveText('260')
     await expect(mobile.getByText('Joint winner', { exact: true })).toHaveCount(2)
     for (const width of [320, 375, 390]) {
@@ -286,4 +291,52 @@ test('touch digs keep committed progress when an older board update arrives', as
     await untouched.dispatchEvent('mouseover')
     expect(await untouched.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(fill)
   } finally { await context.close(); await opponentContext.close() }
+})
+
+
+test('new guests receive persistent explorer names while existing guests keep legacy names', async ({ browser }) => {
+  const freshContext = await browser.newContext()
+  const existingContext = await browser.newContext()
+  const fresh = await freshContext.newPage()
+  const existing = await existingContext.newPage()
+  const db = (admin.apps.length ? admin.app() : admin.initializeApp({ projectId: 'demo-relic-rush' })).firestore()
+  try {
+    // Simulate an account created before explorer naming was introduced.
+    await existing.route('**/src/lib/firebase.ts', async route => {
+      const response = await route.fetch()
+      const source = (await response.text()).replace('if (!existing) localStorage.setItem(pendingNameKey, generateGuestName(user.uid));', '')
+      await route.fulfill({ response, body: source })
+    })
+    await existing.goto('/')
+    await expect(existing.getByTestId('current-player')).toHaveText(/^Player [A-Za-z0-9]{6}$/)
+    await existing.unroute('**/src/lib/firebase.ts')
+    await existing.reload()
+    await expect(existing.getByTestId('current-player')).toHaveText(/^Player [A-Za-z0-9]{6}$/)
+    await fresh.goto('/')
+    await expect(fresh.getByTestId('current-player')).toHaveText(/^[A-Za-z]+-[A-Za-z0-9]{6}$/)
+    const name = await fresh.getByTestId('current-player').innerText()
+    for (const page of [fresh, existing]) await page.getByRole('button', { name: 'Join game', exact: true }).click()
+    const ownRow = fresh.getByRole('region', { name: 'Lobby players' }).locator('.own-player')
+    const uid = (await ownRow.getAttribute('data-player-id'))!
+    expect(name).toBe(generateGuestName(uid))
+    expect((await admin.app().auth().getUser(uid)).displayName).toBe(name)
+    await expect(ownRow).toContainText(name)
+    await expect(existing.getByRole('region', { name: 'Lobby players' })).toContainText(name)
+    await fresh.reload()
+    await expect(fresh.getByTestId('current-player')).toHaveText(name)
+    // Closing the last socket leaves a waiting lobby; rejoin with the same identity.
+    await fresh.getByRole('button', { name: 'Join game', exact: true }).click()
+    await expect(fresh.getByRole('button', { name: 'Ready', exact: true })).toBeEnabled()
+    for (const page of [fresh, existing]) await page.getByRole('button', { name: 'Ready', exact: true }).click()
+    const live = fresh.getByRole('table', { name: 'Leaderboard' }).locator(`[data-player-id="${uid}"]`)
+    await expect(live).toContainText(name)
+    await expect(existing.getByRole('table', { name: 'Leaderboard' })).toContainText(name)
+    const games = await db.collection('gameSessions').where('status', '==', 'active').get()
+    const game = games.docs.find(doc => doc.data().participantIds.includes(uid))!
+    await game.ref.update({ deadline: new Date(Date.now() - 1000).toISOString() })
+    await expect(fresh.getByRole('table', { name: 'Final standings' }).locator(`[data-player-id="${uid}"]`)).toContainText(name)
+    await fresh.getByRole('button', { name: 'Play Again' }).click()
+    await fresh.getByRole('button', { name: 'Join game', exact: true }).click()
+    await expect(fresh.getByRole('region', { name: 'Lobby players' }).locator('.own-player')).toContainText(name)
+  } finally { await Promise.all([freshContext.close(), existingContext.close()]) }
 })

@@ -66,11 +66,11 @@ export class GameService {
     } : {};
   }
 
-  async changeLobby(uid, sessionId, action, ready = false) {
-    return this.serialize(sessionId, () => this.commitLobby(uid, sessionId, action, ready));
+  async changeLobby(uid, sessionId, action, ready = false, displayName) {
+    return this.serialize(sessionId, () => this.commitLobby(uid, sessionId, action, ready, displayName));
   }
 
-  async commitLobby(uid, sessionId, action, ready) {
+  async commitLobby(uid, sessionId, action, ready, displayName) {
     if (!['join', 'leave', 'ready'].includes(action) || typeof ready !== 'boolean') throw new GameError('Invalid lobby action');
     const ref = this.db.collection('gameSessions').doc(sessionId);
     const playerRef = this.db.collection('playerBoards').doc(boardId(sessionId, uid));
@@ -88,13 +88,14 @@ export class GameService {
       if (action === 'join') {
         if (now >= Date.parse(game.scheduledStartTime)) throw new GameError('This countdown has ended. Please join the next lobby.');
         if (!participants[uid] && Object.keys(participants).length >= 6) throw new GameError('This game is full.');
-        participants[uid] ||= { ready: false, joinedAt: iso(now) };
+        const name = oldBoard.data()?.mockPlayerId || (typeof displayName === 'string' && displayName.trim()) || `Player ${uid.slice(0, 6)}`;
+        participants[uid] ||= { ready: false, joinedAt: iso(now), displayName: name };
         if (!oldBoard.exists) {
           const board = Array.from({ length: 6 }, (_, row) => Array.from({ length: 6 }, (_, col) => ({
             isRevealed: false, isTreasure: game.treasurePositions.some(p => p.row === row && p.col === col), discoveryCount: 0
           })));
           tx.set(playerRef, {
-            playerId: uid, mockPlayerId: `Player ${uid.slice(0, 6)}`, isMockPlayer: false, sessionId,
+            playerId: uid, mockPlayerId: name, isMockPlayer: false, sessionId,
             boardState: JSON.stringify(board), remainingDigs: 10, score: 0, discoveries: [], subGridHints: {},
             joinedAt: iso(now), acceptedMoves: 0, processedMoves: {}
           });

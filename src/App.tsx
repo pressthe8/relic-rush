@@ -6,7 +6,6 @@ import { MultiplayerBoard } from './components/MultiplayerBoard'
 import { GameFinale } from './components/GameFinale'
 import { GameIntroduction } from './components/GameIntroduction'
 import { displayPlayerName } from './utils/standings'
-import { YouBadge } from './components/Standings'
 
 export default function App() {
   const params = new URLSearchParams(window.location.search)
@@ -26,14 +25,14 @@ function GameApp() {
   }, [session?.status])
   const finished = session?.status === 'completed' || session?.status === 'cancelled'
   const betweenHunts = !game.connected && !!game.error && !session && !game.sessionId && !game.hasJoined
-  const storedName = game.playerBoard?.mockPlayerId || session?.finalResults?.find(result => result.playerId === game.uid)?.mockPlayerId
+  const storedName = game.displayName || game.playerBoard?.mockPlayerId || session?.finalResults?.find(result => result.playerId === game.uid)?.mockPlayerId
   const instructionsSeconds = session?.matchSeconds || game.lobby?.matchSeconds || 120
   return <main className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 px-2 pb-6 sm:px-6">
     <div className="mx-auto max-w-5xl">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-emerald-200 py-5">
+      <header className="game-header mb-3 flex items-center justify-between gap-2 border-b border-emerald-200 py-3 sm:mb-6 sm:py-5">
         <div className="flex items-center gap-2 text-xl font-bold tracking-tight text-gray-800 sm:text-2xl"><Gem className="text-amber-600" aria-hidden="true" />Relic Rush</div>
-        <div className="min-w-0 text-right"><p className="break-words text-xs font-semibold" data-testid="current-player">{displayPlayerName(game.uid, storedName)} {game.uid && <YouBadge />}</p>
-          <p className="mt-1 flex items-center justify-end gap-1.5 text-[11px] text-gray-600"><span className={`h-1.5 w-1.5 rounded-full ${game.connected ? 'bg-emerald-600' : 'bg-amber-600'}`} />{betweenHunts ? 'Between hunts' : game.connected ? 'Connected' : 'Connecting…'}</p>
+        <div className="flex min-w-0 max-w-[48%] items-center gap-2 text-right sm:block"><p className="min-w-0 break-words text-xs font-semibold" data-testid="current-player">{displayPlayerName(game.uid, storedName)}</p>
+          <p className="flex shrink-0 items-center justify-end gap-1.5 text-[11px] text-gray-600 sm:mt-1"><span className={`h-1.5 w-1.5 rounded-full ${game.connected ? 'bg-emerald-600' : 'bg-amber-600'}`} /><span className={game.connected ? 'sr-only sm:not-sr-only' : ''}>{betweenHunts ? 'Between hunts' : game.connected ? 'Connected' : 'Connecting…'}</span></p>
         </div>
       </header>
       <div className="flex flex-col items-center gap-5">
@@ -52,7 +51,7 @@ function GameApp() {
         <p id="signup-coming-soon" className="mt-2 text-xs text-gray-600">Coming soon</p>
       </section> : introduction ? <GameIntroduction matchSeconds={game.lobby?.matchSeconds} onEnterLobby={() => setIntroduction(false)} /> : finished ?
         <GameFinale finalResults={session.finalResults || []} completionReason={session.completionReason} currentPlayerId={game.uid}
-          onPlayAgain={game.resetGame} onBackToMenu={() => { game.resetGame(); setIntroduction(true) }} /> :
+          onPlayAgain={game.resetGame} onBackToHome={() => { game.resetGame(); setIntroduction(true) }} /> :
         session?.status === 'active' ? <>
           {game.playerBoard ? <MultiplayerBoard playerBoard={game.playerBoard} standings={game.standings} currentPlayerId={game.uid} currentRank={game.currentRank} onDig={game.dig}
             isLoading={game.busy || game.loading || !game.connected || !!game.pendingMove} gameCode={session.gameCode} deadline={session.deadline} clockOffset={game.clockOffset} /> : <p>Loading your board…</p>}

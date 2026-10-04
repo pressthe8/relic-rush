@@ -34,6 +34,7 @@ export function createGameServer(db, verifyToken, options = {}) {
       const user = await verifyToken(socket.handshake.auth?.token);
       if (!user.uid) throw new GameError('Missing guest identity');
       socket.data.uid = user.uid;
+      socket.data.displayName = typeof user.name === 'string' ? user.name.trim() : undefined;
       next();
     } catch { next(new Error('Unable to authenticate your guest session. Please reconnect.')); }
   });
@@ -41,7 +42,7 @@ export function createGameServer(db, verifyToken, options = {}) {
   const publicLobby = game => ({
     id: game.id, gameCode: game.gameCode, scheduledStartTime: game.scheduledStartTime,
     maxPlayers: game.maxPlayers, matchSeconds: game.matchSeconds, status: game.status,
-    players: Object.entries(game.participants).map(([id, p]) => ({ id, ready: p.ready }))
+    players: Object.entries(game.participants).map(([id, p]) => ({ id, ready: p.ready, ...(p.displayName ? { displayName: p.displayName } : {}) }))
   });
   async function publish(game) {
     if (game && ['active', 'cancelled'].includes(game.status) && !reported.has(game.id)) {
@@ -76,7 +77,7 @@ export function createGameServer(db, verifyToken, options = {}) {
     });
     command('joinGame', async ({ sessionId }) => {
       if (typeof sessionId !== 'string') throw new GameError('Select a lobby first.');
-      const game = await service.changeLobby(uid, sessionId, 'join');
+      const game = await service.changeLobby(uid, sessionId, 'join', false, socket.data.displayName);
       if (!connections.get(uid)?.size) await service.changeLobby(uid, sessionId, 'leave');
       await publish(game);
       return { sessionId };

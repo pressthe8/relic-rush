@@ -22,6 +22,7 @@
   .match-board { grid-area:board; }
   .match-note { grid-area:note; }
   .match-standings { grid-area:standings; }
+  .dig-board-wrap { max-width:450px; }
   .standings-table { @apply w-full table-fixed border-collapse text-sm; }
   .standings-table thead th { @apply px-2 pb-3 text-left text-xs font-normal text-gray-600; }
   .standings-table tbody td, .standings-table tbody th { @apply border-t border-emerald-100 px-2 py-4; }
@@ -34,6 +35,11 @@
   .subgrid-hint-2 { background-color: #fed7aa; }
   .subgrid-hint-3 { background-color: #fecaca; }
   .subgrid-hint-4 { background-color: #fca5a5; }
+}
+
+@media (max-width:767px) {
+  /* Reserve space for the header, match code, and stats even with browser bars open. */
+  .dig-board-wrap { width:min(100%, max(280px, calc(100svh - 210px))); }
 }
 
 @media (min-width:768px) {

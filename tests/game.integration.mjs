@@ -267,3 +267,24 @@ test('client writes are denied while authenticated state subscriptions remain av
   const write = await fetch(url + '?updateMask.fieldPaths=status', { method: 'PATCH', headers, body: JSON.stringify({ fields: { status: { stringValue: 'completed' } } }) });
   assert.equal(write.status, 403);
 });
+
+
+test('profile names flow through lobby, boards, and results without renaming retained boards', async () => {
+  const lobby = await service.ensureLobby();
+  await service.changeLobby('newguest123', lobby.id, 'join', false, 'Anning-newgue');
+  await service.changeLobby('legacy123', lobby.id, 'join');
+  let game = await readGame(lobby.id);
+  assert.equal(game.participants.newguest123.displayName, 'Anning-newgue');
+  assert.equal(game.participants.legacy123.displayName, 'Player legacy');
+  await service.changeLobby('newguest123', lobby.id, 'leave');
+  await service.changeLobby('newguest123', lobby.id, 'join', false, 'Different name');
+  game = await readGame(lobby.id);
+  assert.equal(game.participants.newguest123.displayName, 'Anning-newgue');
+  await service.changeLobby('newguest123', lobby.id, 'ready', true);
+  await service.changeLobby('legacy123', lobby.id, 'ready', true);
+  now += 121000;
+  await service.settle(lobby.id);
+  game = await readGame(lobby.id);
+  assert.equal(game.finalResults.find(p => p.playerId === 'newguest123').mockPlayerId, 'Anning-newgue');
+  assert.equal(game.finalResults.find(p => p.playerId === 'legacy123').mockPlayerId, 'Player legacy');
+});
