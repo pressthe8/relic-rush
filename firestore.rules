@@ -1,0 +1,8 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Playtest clients subscribe to state; the Admin server performs all mutations.
+    match /gameSessions/{sessionId} { allow read: if request.auth != null; }
+    match /playerBoards/{boardId} { allow read: if request.auth != null; }
+  }
+}

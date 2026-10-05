@@ -1,244 +1,69 @@
-import React, { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Gem } from 'lucide-react'
 import { useMultiplayerGame } from './hooks/useMultiplayerGame'
-import { MultiplayerSetup } from './components/MultiplayerSetup'
+import { SocketGameLobby } from './components/SocketGameLobby'
 import { MultiplayerBoard } from './components/MultiplayerBoard'
 import { GameFinale } from './components/GameFinale'
 import { GameIntroduction } from './components/GameIntroduction'
-import { SocketGameLobby } from './components/SocketGameLobby'
-import { SupabaseConnectionTest } from './components/SupabaseConnectionTest'
-import { LobbySystemDiagnostic } from './components/LobbySystemDiagnostic'
-import { Gem, ArrowLeft } from 'lucide-react'
-import { GameSettings, GridSize } from './types'
+import { displayPlayerName } from './utils/standings'
 
-type AppMode = 'introduction' | 'lobby' | 'private-setup' | 'game' | 'connection-test' | 'lobby-diagnostic'
-
-function App() {
-  const [appMode, setAppMode] = useState<AppMode>('lobby') // Switch to lobby as default
-  const [settings, setSettings] = useState<GameSettings>({
-    gridSize: 9 as GridSize,
-    treasureCount: 5,
-    digAttempts: 10,
-    gameMode: 'single' // Keep for compatibility but unused
-  })
-  
-  // Feature flag for private games (parked for now)
-  const ENABLE_PRIVATE_GAMES = false
-  
-  // Multiplayer game state
-  const {
-    session,
-    playerBoard,
-    otherPlayers,
-    isLoading,
-    error,
-    gameCompleted,
-    finalResults,
-    createGameSession,
-    joinGameSession,
-    joinGameSessionByCode,
-    dig: multiplayerDig,
-    resetGame: resetMultiplayerGame
-  } = useMultiplayerGame()
-
-  const handleBackToIntroduction = () => {
-    setAppMode('introduction')
-    resetMultiplayerGame()
+export default function App() {
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('how-to-play') === '1') {
+    const seconds = Number(params.get('matchSeconds') || 120)
+    return <main className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 p-4"><div className="mx-auto max-w-4xl py-6"><GameIntroduction referenceOnly matchSeconds={Number.isInteger(seconds) && seconds > 0 && seconds <= 86400 ? seconds : 120} onEnterLobby={() => window.close()} /></div></main>
   }
-
-  const handleEnterLobby = () => {
-    setAppMode('lobby')
-  }
-
-  const handleEnterPrivateSetup = () => {
-    setAppMode('private-setup')
-  }
-
-  const handleGameStart = (sessionId: string) => {
-    // Join the game session and switch to game mode
-    joinGameSession(sessionId)
-    setAppMode('game')
-  }
-
-  const handleCreateMultiplayerGame = async () => {
-    const gameCode = await createGameSession(settings)
-    if (gameCode) {
-      console.log('Game created with code:', gameCode)
-      setAppMode('game')
-    }
-  }
-
-  const handleJoinMultiplayerGame = async (gameCode: string) => {
-    const success = await joinGameSessionByCode(gameCode)
-    if (success) {
-      console.log('Successfully joined game:', gameCode)
-      setAppMode('game')
-    }
-  }
-
-  const handlePlayAgain = () => {
-    resetMultiplayerGame()
-    setAppMode('lobby') // Return to lobby for next game
-  }
-
-  // Debug: Log current app mode
-  console.log('Current app mode:', appMode)
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 p-4">
-      <div className="max-w-6xl mx-auto flex flex-col items-center gap-6">
-        <div className="flex items-center gap-3 mt-8">
-          <Gem className="w-8 h-8 text-amber-600" />
-          <h1 className="text-4xl font-bold text-gray-800">Relic Rush</h1>
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="w-full max-w-md p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        )}
-
-        {/* Mode Navigation */}
-        <div className="flex flex-wrap gap-2 text-xs">
-          <button
-            onClick={() => setAppMode('lobby')}
-            className={`px-3 py-1 rounded ${appMode === 'lobby' ? 'bg-emerald-600 text-white' : 'bg-gray-200'}`}
-          >
-            🎮 Socket Lobby
-          </button>
-          <button
-            onClick={() => setAppMode('introduction')}
-            className={`px-3 py-1 rounded ${appMode === 'introduction' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}
-          >
-            📖 Introduction
-          </button>
-          <button
-            onClick={() => setAppMode('lobby-diagnostic')}
-            className={`px-3 py-1 rounded ${appMode === 'lobby-diagnostic' ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}
-          >
-            🔍 Diagnostics
-          </button>
-          <button
-            onClick={() => setAppMode('connection-test')}
-            className={`px-3 py-1 rounded ${appMode === 'connection-test' ? 'bg-orange-600 text-white' : 'bg-gray-200'}`}
-          >
-            🔧 Connection Test
-          </button>
-          {ENABLE_PRIVATE_GAMES && (
-            <button
-              onClick={() => setAppMode('private-setup')}
-              className={`px-3 py-1 rounded ${appMode === 'private-setup' ? 'bg-amber-600 text-white' : 'bg-gray-200'}`}
-            >
-              🔒 Private Games
-            </button>
-          )}
-        </div>
-
-        {/* Lobby System Diagnostic */}
-        {appMode === 'lobby-diagnostic' && (
-          <LobbySystemDiagnostic />
-        )}
-
-        {/* Connection Test Mode */}
-        {appMode === 'connection-test' && (
-          <SupabaseConnectionTest />
-        )}
-
-        {/* Introduction Screen */}
-        {appMode === 'introduction' && (
-          <GameIntroduction 
-            onEnterLobby={handleEnterLobby}
-            onEnterPrivateSetup={ENABLE_PRIVATE_GAMES ? handleEnterPrivateSetup : undefined}
-          />
-        )}
-
-        {/* Socket.IO Game Lobby */}
-        {appMode === 'lobby' && (
-          <>
-            <button
-              onClick={handleBackToIntroduction}
-              className="self-start flex items-center gap-2 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Introduction
-            </button>
-
-            <SocketGameLobby onGameStart={handleGameStart} />
-          </>
-        )}
-
-        {/* Private Game Setup (Parked Feature) */}
-        {appMode === 'private-setup' && ENABLE_PRIVATE_GAMES && (
-          <>
-            <button
-              onClick={handleBackToIntroduction}
-              className="self-start flex items-center gap-2 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Introduction
-            </button>
-
-            <MultiplayerSetup
-              settings={settings}
-              onSettingsChange={setSettings}
-              onCreateGame={handleCreateMultiplayerGame}
-              onJoinGame={handleJoinMultiplayerGame}
-              isLoading={isLoading}
-              gameCode={session?.game_code}
-            />
-          </>
-        )}
-
-        {/* Active Game */}
-        {appMode === 'game' && (
-          <>
-            <button
-              onClick={handleBackToIntroduction}
-              className="self-start flex items-center gap-2 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Introduction
-            </button>
-
-            {gameCompleted && finalResults ? (
-              <GameFinale
-                finalResults={finalResults}
-                onPlayAgain={handlePlayAgain}
-                onBackToMenu={handleBackToIntroduction}
-                gameStartTime={session?.start_time}
-                gameEndTime={session?.end_time}
-              />
-            ) : !session || !playerBoard ? (
-              <div className="text-center">
-                <p className="text-gray-600">Loading game...</p>
-              </div>
-            ) : (
-              <MultiplayerBoard
-                playerBoard={playerBoard}
-                otherPlayers={otherPlayers}
-                onDig={multiplayerDig}
-                isLoading={isLoading}
-                gameCode={session.game_code}
-              />
-            )}
-          </>
-        )}
-
-        {/* Fallback for Unknown State */}
-        {!['introduction', 'lobby', 'private-setup', 'game', 'connection-test', 'lobby-diagnostic'].includes(appMode) && (
-          <div className="text-center">
-            <p className="text-red-600">Unknown app state: {appMode}</p>
-            <button
-              onClick={() => setAppMode('lobby')}
-              className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg"
-            >
-              Return to Lobby
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+  return <GameApp />
 }
 
-export default App
+function GameApp() {
+  const game = useMultiplayerGame()
+  const [introduction, setIntroduction] = useState(false)
+  const session = game.session
+  useEffect(() => {
+    if (session?.status === 'active' || session?.status === 'completed' || session?.status === 'cancelled') setIntroduction(false)
+  }, [session?.status])
+  const finished = session?.status === 'completed' || session?.status === 'cancelled'
+  const betweenHunts = !game.connected && !!game.error && !session && !game.sessionId && !game.hasJoined
+  const storedName = game.displayName || game.playerBoard?.mockPlayerId || session?.finalResults?.find(result => result.playerId === game.uid)?.mockPlayerId
+  const instructionsSeconds = session?.matchSeconds || game.lobby?.matchSeconds || 120
+  return <main className="min-h-screen bg-gradient-to-br from-emerald-50 to-amber-50 px-2 pb-6 sm:px-6">
+    <div className="mx-auto max-w-5xl">
+      <header className="game-header mb-3 flex items-center justify-between gap-2 border-b border-emerald-200 py-3 sm:mb-6 sm:py-5">
+        <div className="flex items-center gap-2 text-xl font-bold tracking-tight text-gray-800 sm:text-2xl"><Gem className="text-amber-600" aria-hidden="true" />Relic Rush</div>
+        <div className="flex min-w-0 max-w-[48%] items-center gap-2 text-right sm:block"><p className="min-w-0 break-words text-xs font-semibold" data-testid="current-player">{displayPlayerName(game.uid, storedName)}</p>
+          <p className="flex shrink-0 items-center justify-end gap-1.5 text-[11px] text-gray-600 sm:mt-1"><span className={`h-1.5 w-1.5 rounded-full ${game.connected ? 'bg-emerald-600' : 'bg-amber-600'}`} /><span className={game.connected ? 'sr-only sm:not-sr-only' : ''}>{betweenHunts ? 'Between hunts' : game.connected ? 'Connected' : 'Connecting…'}</span></p>
+        </div>
+      </header>
+      <div className="flex flex-col items-center gap-5">
+      {game.error && !betweenHunts && <div role="alert" className="w-full max-w-2xl rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <p>{game.error}</p>
+        <button className="mt-2 underline" onClick={game.errorKind === 'action' && game.connected ? game.dismissError : game.reconnect}>{game.errorKind === 'action' && game.connected ? 'Dismiss' : game.errorKind === 'data' && game.connected ? 'Retry game updates' : 'Reconnect'}</button>
+      </div>}
+      {game.pendingMove && !game.busy && session?.status === 'active' && <div role="status" className="rounded-lg bg-amber-50 p-4 text-amber-900">
+        A dig is awaiting confirmation. <button disabled={!game.connected} className="underline" onClick={game.retryMove}>Retry dig</button>
+      </div>}
+      {betweenHunts ? <section aria-labelledby="between-hunts-heading" className="game-panel my-4 w-full max-w-2xl px-5 py-10 text-center sm:px-10 sm:py-14">
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-700"><Gem size={34} aria-hidden="true" /></div>
+        <h1 id="between-hunts-heading" className="stage-heading">The next hunt awaits.</h1>
+        <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-gray-600">Relic Rush currently opens for limited play windows only.<br />Sign up for announcements, or try your luck another time.<br />We look forward to seeing you for the next rush.</p>
+        <button className="game-button mt-7" disabled aria-describedby="signup-coming-soon">Sign up / Login</button>
+        <p id="signup-coming-soon" className="mt-2 text-xs text-gray-600">Coming soon</p>
+      </section> : introduction ? <GameIntroduction matchSeconds={game.lobby?.matchSeconds} onEnterLobby={() => setIntroduction(false)} /> : finished ?
+        <GameFinale finalResults={session.finalResults || []} completionReason={session.completionReason} currentPlayerId={game.uid}
+          onPlayAgain={game.resetGame} onBackToHome={() => { game.resetGame(); setIntroduction(true) }} /> :
+        session?.status === 'active' ? <>
+          {game.playerBoard ? <MultiplayerBoard playerBoard={game.playerBoard} standings={game.standings} currentPlayerId={game.uid} currentRank={game.currentRank} onDig={game.dig}
+            isLoading={game.busy || game.loading || !game.connected || !!game.pendingMove} gameCode={session.gameCode} deadline={session.deadline} clockOffset={game.clockOffset} /> : <p>Loading your board…</p>}
+        </> : <>
+          {game.sessionId && !session ? <p>Loading game…</p> : <SocketGameLobby game={game.lobby} currentPlayerId={game.uid} hasJoined={game.hasJoined} ready={game.ready}
+            disabled={game.busy || !game.connected || game.loading} clockOffset={game.clockOffset} onJoin={game.joinGame} onLeave={game.leaveGame} onReady={game.setReady} />}
+          {game.error && <button className="text-sm underline" onClick={game.resetGame}>Return to lobby</button>}
+        </>}
+      </div>
+      <footer className="mt-6 flex items-center justify-between gap-3 text-xs text-gray-600"><span>6 × 6 board · 5 hidden treasures</span>
+        <a className="inline-flex min-h-11 items-center text-emerald-800 underline underline-offset-4" href={`?how-to-play=1&matchSeconds=${instructionsSeconds}`} target="_blank" rel="noopener noreferrer">How to play<span className="sr-only"> (opens in a new tab)</span><span aria-hidden="true" className="ml-1">↗</span></a>
+      </footer>
+    </div>
+  </main>
+}

@@ -1,176 +1,78 @@
-import React, { useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
+import { Gem, Check } from 'lucide-react'
 import { Square } from './Square'
-import { PlayerBoard } from '../lib/supabase'
-import { Users, Trophy, Shovel, Copy, Check, Hash } from 'lucide-react'
-
-interface Position {
-  row: number
-  col: number
-}
+import type { PlayerBoard } from '../lib/firebase'
+import type { Position } from '../types'
+import type { Standing } from '../utils/standings'
+import { ordinal } from '../utils/standings'
+import { getHintIntensityClass } from '../utils/subGridUtils'
+import { Standings } from './Standings'
+import { CountdownTimer } from './CountdownTimer'
+import { GameCode } from './GameCode'
 
 interface MultiplayerBoardProps {
   playerBoard: PlayerBoard
-  otherPlayers: PlayerBoard[]
+  standings: Standing[]
+  currentPlayerId: string
+  currentRank: number | null
   onDig: (position: Position) => void
   isLoading: boolean
   gameCode?: string
+  deadline?: string
+  clockOffset?: number
 }
 
-export const MultiplayerBoard: React.FC<MultiplayerBoardProps> = ({
-  playerBoard,
-  otherPlayers,
-  onDig,
-  isLoading,
-  gameCode
-}) => {
-  const [copied, setCopied] = useState(false)
-  const boardSize = playerBoard.board_state.length
-
-  const handleCopyGameCode = async () => {
-    if (gameCode) {
-      await navigator.clipboard.writeText(gameCode)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
-  // Total players = current player + other players
-  const totalPlayers = otherPlayers.length + 1
-
-  // Debug logging for sub-grid hints
-  console.log('🎮 MultiplayerBoard render - playerBoard.sub_grid_hints:', playerBoard.sub_grid_hints)
-  console.log('🎮 Has hints?', Object.keys(playerBoard.sub_grid_hints || {}).length > 0)
-
-  return (
-    <div className="w-full max-w-4xl space-y-6">
-      {/* Game Code Display */}
-      {gameCode && (
-        <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Hash className="w-5 h-5 text-emerald-600" />
-              <span className="font-medium text-emerald-800">Game Code:</span>
-            </div>
-            <div className="flex items-center gap-2 flex-1 min-w-0 justify-center">
-              <div className="text-2xl font-bold text-emerald-700 tracking-wider bg-white px-4 py-2 rounded-lg border-2 border-emerald-300">
-                {gameCode}
-              </div>
-              <button
-                onClick={handleCopyGameCode}
-                className="flex items-center gap-1 px-3 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors text-sm whitespace-nowrap"
-              >
-                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                {copied ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-          </div>
-          <p className="text-sm text-emerald-700 mt-2 text-center">
-            Share this <strong>6-character game code</strong> with other players to invite them to your game.
-          </p>
-        </div>
-      )}
-
-      {/* Game Stats - ONLY show player's own stats and total player count */}
-      <div className="flex flex-wrap items-center gap-6 p-4 bg-white rounded-xl shadow-lg">
-        <div className="flex items-center gap-2 text-gray-700">
-          <Shovel className="w-5 h-5 text-amber-600" />
-          <span className="font-medium">Digs: {playerBoard.remaining_digs}</span>
-        </div>
-        
-        <div className="flex items-center gap-2 text-gray-700">
-          <Trophy className="w-5 h-5 text-amber-600" />
-          <span className="font-medium">Score: {playerBoard.score}</span>
-        </div>
-
-        <div className="flex items-center gap-2 text-gray-700">
-          <Users className="w-5 h-5 text-emerald-600" />
-          <span className="font-medium">Players: {totalPlayers}</span>
-        </div>
-      </div>
-
-      {/* Sub-grid Hints Legend - Always show for debugging */}
-      <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
-        <h3 className="font-semibold text-amber-800 mb-2">🗺️ Treasure Hunt Heat Map</h3>
-        <p className="text-sm text-amber-700 mb-3">
-          Colored borders show sub-grid areas where other players have found treasures. 
-          Intensity increases with more discoveries in that area.
-        </p>
-        
-        {/* Debug info */}
-        <div className="mb-3 p-2 bg-amber-100 rounded text-xs text-amber-800">
-          <strong>Debug:</strong> Sub-grid hints: {JSON.stringify(playerBoard.sub_grid_hints || {})}
-        </div>
-        
-        <div className="flex flex-wrap gap-4 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-yellow-400 bg-yellow-100 rounded"></div>
-            <span className="text-amber-700">1 discovery</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-orange-500 bg-orange-100 rounded"></div>
-            <span className="text-amber-700">2 discoveries</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-red-600 bg-red-100 rounded"></div>
-            <span className="text-amber-700">3 discoveries</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 border-2 border-red-800 bg-red-200 rounded"></div>
-            <span className="text-amber-700">4+ discoveries</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Game Board - Only show player's own board state with sub-grid hints */}
-      <div className="flex justify-center">
-        <div 
-          className={`
-            grid gap-2 p-6 bg-emerald-950/10 rounded-xl shadow-inner
-            transition-all duration-300
-            ${isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}
-          `}
-          style={{
-            gridTemplateColumns: `repeat(${boardSize}, minmax(0, 1fr))`,
-            width: '100%',
-            maxWidth: `${boardSize * 3.5}rem`
-          }}
-        >
-          {playerBoard.board_state.map((row: any[], rowIndex: number) => (
-            row.map((square: any, colIndex: number) => (
-              <Square
-                key={`${rowIndex}-${colIndex}`}
-                square={square}
-                position={{ row: rowIndex, col: colIndex }}
-                gridSize={boardSize}
-                subGridHints={playerBoard.sub_grid_hints || {}}
-                onClick={() => onDig({ row: rowIndex, col: colIndex })}
-                disabled={isLoading || playerBoard.remaining_digs <= 0}
-                isOpponentView={false}
-                showOwnDiscoveries={true}
-              />
-            ))
-          ))}
-        </div>
-      </div>
-
-      {/* Recent Discoveries */}
-      {playerBoard.discoveries.length > 0 && (
-        <div className="p-4 bg-white rounded-xl shadow-lg">
-          <h3 className="font-semibold text-gray-800 mb-3">Your Discoveries</h3>
-          <div className="space-y-2">
-            {playerBoard.discoveries.slice(-3).reverse().map((discovery: any, index: number) => (
-              <div key={index} className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">
-                  Position ({discovery.row}, {discovery.col})
-                </span>
-                <span className="font-medium text-amber-600">
-                  +{discovery.points} points
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+export function MultiplayerBoard({ playerBoard, standings, currentPlayerId, currentRank, onDig, isLoading, gameCode, deadline, clockOffset = 0 }: MultiplayerBoardProps) {
+  const [expired, setExpired] = useState(false)
+  useEffect(() => {
+    const update = () => setExpired(!!deadline && Date.now() + clockOffset >= Date.parse(deadline))
+    update()
+    const timer = setInterval(update, 250)
+    return () => clearInterval(timer)
+  }, [deadline, clockOffset])
+  const boardSize = playerBoard.boardState.length
+  const latest = playerBoard.discoveries[playerBoard.discoveries.length - 1]
+  const outOfDigs = playerBoard.remainingDigs <= 0
+  return <section className="w-full" aria-label="Active match">
+    <div className="mb-2 flex flex-wrap items-end justify-between gap-2 sm:mb-5">
+      <div className="hidden md:block"><p className="stage-kicker">The hunt is on</p><h1 className="stage-heading">Make every dig count.</h1></div>
+      <h1 className="sr-only md:hidden">Make every dig count.</h1>
+      {gameCode && <GameCode code={gameCode} />}
     </div>
-  )
+    <div className="match-layout">
+          <div className="match-hud game-panel sticky top-0 z-20 grid grid-cols-[1.1fr_1fr_1fr] gap-2 !rounded-b-none px-3 py-3" aria-label="Your match stats">
+            <div className="min-w-0 border-r border-emerald-100 pr-2">{deadline ? <CountdownTimer inline targetTime={deadline} clockOffset={clockOffset} label="Time left" expiredText="Match ended. Confirming results…" /> : <><span className="text-[11px] text-gray-600">Time left</span><p className="text-2xl">—</p></>}</div>
+            <div className="min-w-0 border-r border-emerald-100 pr-1"><p className="text-[11px] text-gray-600">Your score</p>
+              <p className="mt-1 flex items-baseline gap-1 whitespace-nowrap"><strong className="text-2xl leading-tight tabular-nums">{playerBoard.score}</strong><span data-testid="mobile-rank" aria-label={currentRank ? `Rank: ${ordinal(currentRank)}` : 'Rank loading'} className="rounded bg-emerald-50 px-1 text-[11px] font-semibold text-emerald-800 md:hidden">{currentRank ? ordinal(currentRank) : '—'}</span></p>
+            </div>
+            <div><p className="text-[11px] text-gray-600">Digs left</p><p className="mt-1 text-2xl font-bold leading-tight tabular-nums" data-testid="remaining-digs">{playerBoard.remainingDigs}</p></div>
+          </div>
+          <div className="match-board game-panel !rounded-t-none !border-t-0 px-2 pb-3 pt-2 sm:px-4 sm:pb-4 sm:pt-4">
+            <div className="dig-board-wrap relative mx-auto">
+            <div className="grid gap-1 sm:gap-2" style={{ gridTemplateColumns: `12px repeat(${boardSize}, minmax(0, 1fr))` }} aria-label="Dig board">
+              <span />{Array.from({ length: boardSize }, (_, col) => <span key={col} className="pb-1 text-center text-xs font-semibold text-emerald-800">{String.fromCharCode(65 + col)}</span>)}
+              {playerBoard.boardState.map((row, rowIndex) => <Fragment key={rowIndex}>
+                <span className="flex items-center text-xs font-semibold text-emerald-800">{rowIndex + 1}</span>
+                {row.map((square, colIndex) => <Square key={colIndex} square={square} position={{ row: rowIndex, col: colIndex }} gridSize={boardSize}
+                  subGridHints={playerBoard.subGridHints} onClick={() => onDig({ row: rowIndex, col: colIndex })} disabled={isLoading || expired || outOfDigs} showOwnDiscoveries />)}
+              </Fragment>)}
+            </div>
+            {(outOfDigs || expired) && <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-emerald-950/15 p-3">
+              <div role="status" className="w-full max-w-xs rounded-xl border border-emerald-300 bg-white/95 p-5 text-center shadow-lg">
+                <Check className="mx-auto mb-2 text-emerald-700" size={28} aria-hidden="true" />
+                <h2 className="text-xl font-bold">{expired ? 'Time’s up!' : 'All digs used!'}</h2>
+                <p className="mt-2 text-sm text-gray-600">{expired ? 'Confirming the final results…' : 'Your hunt is done. Watch the leaderboard while the others finish.'}</p>
+              </div>
+            </div>}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-gray-600" aria-label="Nearby relics legend">
+              <span>Nearby relics</span>{[1, 2, 3, 4].map(level => <span key={level} className="inline-flex items-center gap-1"><span aria-hidden="true" className={`h-3 w-3 rounded-sm ${getHintIntensityClass(level)}`} />{level === 4 ? '4+' : level}</span>)}
+            </div>
+          </div>
+        {!expired && !outOfDigs && latest && <div className="match-note game-panel mt-3 flex items-center gap-2 px-3 py-3 text-xs text-gray-600" role="status">
+          <Gem size={16} className="shrink-0 text-amber-700" /><span>Your latest find · {String.fromCharCode(65 + latest.col)}{latest.row + 1}</span><strong className="ml-auto whitespace-nowrap text-amber-800">+{latest.points} points</strong>
+        </div>}
+      <aside className="match-standings mt-5 min-w-0 md:mt-0"><Standings rows={standings} currentPlayerId={currentPlayerId} /></aside>
+    </div>
+  </section>
 }

@@ -1,2 +1,9 @@
 node_modules/
 .env
+
+# Build and test output
+dist/
+.test-results/
+playwright-report/
+*-debug.log
+.firebase/

@@ -35,8 +35,6 @@ export const getSubGridBounds = (subGridIndex: number, gridSize: number) => {
  * Check if a position is on the border between sub-grids and should show inner borders
  */
 export const getSubGridBorderInfo = (position: Position, gridSize: number) => {
-  const subGridSize = gridSize / 3
-  const { row, col } = position
   
   // Calculate which sub-grid this position belongs to
   const subGridIndex = getSubGridIndex(position, gridSize)

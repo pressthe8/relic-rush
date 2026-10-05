@@ -1,7 +1,7 @@
 import React from 'react';
 import { Gem } from 'lucide-react';
 import { Square as SquareType, Position, SubGridHints } from '../types';
-import { getSubGridBorderInfo, getHintIntensityClass, getBorderClasses } from '../utils/subGridUtils';
+import { getSubGridIndex, getHintIntensityClass } from '../utils/subGridUtils';
 
 interface SquareProps {
   square: SquareType;
@@ -40,48 +40,45 @@ export const Square: React.FC<SquareProps> = ({
     }
     
     // Only unrevealed squares can show hint styling
-    return 'bg-emerald-100 hover:bg-emerald-200';
+    return 'bg-emerald-100';
   };
 
   const getHoverTitle = () => {
     if (!isOpponentView && square.isRevealed && square.isTreasure && showOwnDiscoveries) {
-      return `Found ${square.discoveryCount} times - Next find worth ${Math.max(0, 100 - (square.discoveryCount - 1) * 20)} points`;
+      return `Discovery #${square.discoveryCount} - Earned ${Math.max(0, 100 - (square.discoveryCount - 1) * 20)} points`;
     }
     return '';
   };
 
   // Calculate sub-grid hint styling - BUT ONLY FOR UNREVEALED SQUARES
-  const { subGridIndex, borders } = getSubGridBorderInfo(position, gridSize);
+  const subGridIndex = getSubGridIndex(position, gridSize);
   const hintIntensity = subGridHints[subGridIndex] || 0;
   
   // Only apply hint styling to unrevealed squares
   const shouldShowHints = !square.isRevealed && hintIntensity > 0;
   
   const intensityClass = shouldShowHints ? getHintIntensityClass(hintIntensity) : '';
-  const borderClasses = shouldShowHints ? getBorderClasses(borders, intensityClass) : '';
-
-  // Debug logging only for squares with hints
-  if (shouldShowHints) {
-    console.log(`🎯 Square (${position.row}, ${position.col}) - Sub-grid ${subGridIndex}, Intensity: ${hintIntensity}, Revealed: ${square.isRevealed}`);
-  }
 
   // Determine if we should show the diamond icon
   const shouldShowDiamond = square.isRevealed && square.isTreasure && showOwnDiscoveries && !isOpponentView;
 
   return (
     <button
+      aria-label={`${String.fromCharCode(65 + position.col)}${position.row + 1}${square.isRevealed ? square.isTreasure ? ": treasure" : ": empty" : ": dig"}`}
+      aria-description={shouldShowHints ? `${hintIntensity} nearby relic${hintIntensity === 1 ? '' : 's'} found by other players` : undefined}
       onClick={onClick}
       disabled={disabled || (isOpponentView ? false : square.isRevealed)}
       title={getHoverTitle()}
       className={`
         w-full aspect-square rounded-lg border-2 border-emerald-950/10
-        ${getBackgroundColor()}
+        ${shouldShowHints ? intensityClass : getBackgroundColor()}
         transform transition-all duration-200
-        ${!disabled && !square.isRevealed ? 'hover:scale-95' : ''}
+        ${!disabled && !square.isRevealed ? '[@media(hover:hover)_and_(pointer:fine)]:hover:scale-95' : ''}
+        ${!disabled && !square.isRevealed && !shouldShowHints ? '[@media(hover:hover)_and_(pointer:fine)]:hover:bg-emerald-200' : ''}
+        touch-manipulation
         focus:outline-none focus:ring-2 focus:ring-amber-500
         disabled:cursor-default
         flex items-center justify-center
-        ${borderClasses}
       `}
     >
       {shouldShowDiamond && (

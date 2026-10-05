@@ -1,284 +1,60 @@
-import React from 'react'
-import { useSocketLobby } from '../hooks/useSocketLobby'
+import { Check, UserRound } from 'lucide-react'
+import type { LobbyGame } from '../hooks/useMultiplayerGame'
+import { displayPlayerName } from '../utils/standings'
 import { CountdownTimer } from './CountdownTimer'
-import { Users, RefreshCw, AlertCircle, Wifi, WifiOff, Grid3x3, Trophy, Clock } from 'lucide-react'
+import { GameCode } from './GameCode'
+import { YouBadge } from './Standings'
 
-interface SocketGameLobbyProps {
-  onGameStart: (sessionId: string) => void
+interface Props {
+  game: LobbyGame | null
+  currentPlayerId: string
+  hasJoined: boolean
+  ready: boolean
+  disabled: boolean
+  clockOffset: number
+  onJoin: () => void
+  onLeave: () => void
+  onReady: (ready: boolean) => void
 }
-
-export const SocketGameLobby: React.FC<SocketGameLobbyProps> = ({ onGameStart }) => {
-  const {
-    currentGame,
-    playerCount,
-    hasJoined,
-    isConnected,
-    isJoining,
-    isLeaving,
-    error,
-    joinGame,
-    leaveGame
-  } = useSocketLobby()
-
-  // Connection status indicator
-  const ConnectionStatus = () => (
-    <div className={`flex items-center gap-2 text-sm ${isConnected ? 'text-green-600' : 'text-red-600'}`}>
-      {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-      {isConnected ? 'Connected' : 'Disconnected'}
+export function SocketGameLobby({ game, currentPlayerId, hasJoined, ready, disabled, clockOffset, onJoin, onLeave, onReady }: Props) {
+  if (!game) return <p role="status">Loading the next lobby…</p>
+  const readyCount = game.players.filter(player => player.ready).length
+  const openPlaces = Math.max(0, game.maxPlayers - game.players.length)
+  return <section className="w-full" aria-label="Game lobby">
+    <div className="mb-3 sm:mb-5"><p className="stage-kicker hidden sm:block">Gather your crew</p><h1 className="stage-heading">Game Lobby</h1>
+      <p className="mt-2 text-sm text-gray-600">{hasJoined ? 'You’re in. Your next adventure starts here.' : 'Join the crew for a quick treasure hunt.'}</p>
     </div>
-  )
-
-  if (!isConnected) {
-    return (
-      <div className="w-full max-w-2xl space-y-6">
-        <div className="text-center">
-          <WifiOff className="w-8 h-8 text-red-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Connecting to Lobby...</h2>
-          <p className="text-gray-600">Establishing real-time connection</p>
+    <div className="grid items-start gap-5 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+      <div className="md:col-start-2 md:row-start-1">
+        <div className="game-panel p-4 sm:p-5">
+          <div className="mb-3"><GameCode code={game.gameCode} /></div>
+          <div className="mb-3 flex items-center justify-between gap-2 text-sm text-gray-600"><span>{game.players.length}/{game.maxPlayers} players</span><span>{readyCount}/{game.players.length} ready</span></div>
+          <CountdownTimer targetTime={game.scheduledStartTime} clockOffset={clockOffset} compact />
+        <div className="mt-4 flex flex-wrap gap-3">
+          {hasJoined ? <><button aria-pressed={ready} disabled={disabled} onClick={() => onReady(!ready)} className="game-button flex-1">{ready && <Check size={16} />}{ready ? 'Undo ready' : 'Ready'}</button>
+            <button disabled={disabled} onClick={onLeave} className="game-button-secondary flex-1">Leave game</button></> :
+            <button disabled={disabled} onClick={onJoin} className="game-button w-full">Join game</button>}
         </div>
+          <dl className="mt-4 grid grid-cols-4 gap-2 text-xs text-gray-600">
+            <div><dt>Board</dt><dd className="mt-1 font-semibold text-gray-800">6 × 6</dd></div>
+            <div><dt>Treasures</dt><dd className="mt-1 font-semibold text-gray-800">5 relics</dd></div>
+            <div><dt>Initial digs</dt><dd className="mt-1 font-semibold text-gray-800">10 digs</dd></div>
+            <div><dt>Duration</dt><dd className="mt-1 font-semibold text-gray-800">{game.matchSeconds % 60 === 0 ? `${game.matchSeconds / 60} min` : `${game.matchSeconds} sec`}</dd></div>
+          </dl>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-gray-600">{game.players.length < 2 ? 'Waiting for another player before we can start. ' : ready && hasJoined ? 'You’re ready. ' : ''}Starts when six players join, everyone is ready with at least two players, or the countdown ends with at least two players.</p>
       </div>
-    )
-  }
-
-  if (!currentGame) {
-    return (
-      <div className="w-full max-w-2xl space-y-6">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Loading Game Lobby...</h2>
-          <p className="text-gray-600">Setting up the next game</p>
-        </div>
-      </div>
-    )
-  }
-
-  const playersNeeded = currentGame.max_players - playerCount
-  const isFull = playerCount >= currentGame.max_players
-
-  return (
-    <div className="w-full max-w-2xl space-y-6">
-      {/* Header */}
-      <div className="text-center space-y-4">
-        <div className="flex items-center justify-center gap-3">
-          <Users className="w-8 h-8 text-emerald-600" />
-          <h2 className="text-3xl font-bold text-gray-800">Game Lobby</h2>
-        </div>
-        <p className="text-gray-600">
-          Join the next scheduled game or wait for more players to join
-        </p>
-        <ConnectionStatus />
-      </div>
-
-      {/* Error Display */}
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-red-800 text-sm">{error}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Game Card */}
-      {hasJoined ? (
-        // Joined Status
-        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-6">
-          <div className="text-center space-y-4 mb-6">
-            <div className="flex items-center justify-center gap-3">
-              <div className="w-8 h-8 bg-emerald-600 rounded-full flex items-center justify-center">
-                <Users className="w-5 h-5 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-emerald-800">You're In!</h3>
-            </div>
-            <p className="text-emerald-700">
-              Successfully joined game <span className="font-mono font-bold">{currentGame.game_code}</span>
-            </p>
-          </div>
-
-          {/* Countdown Timer */}
-          <div className="text-center mb-6">
-            <CountdownTimer
-              targetTime={currentGame.scheduled_start_time}
-              onComplete={() => window.location.reload()}
-              variant="success"
-            />
-          </div>
-
-          {/* Game Status */}
-          <div className="bg-white rounded-lg p-4 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-semibold text-gray-800">Game Status</span>
-              <Users className="w-5 h-5 text-emerald-600" />
-            </div>
-
-            {isFull ? (
-              <div className="space-y-2">
-                <p className="text-emerald-700 font-medium">🎉 Game is full! Starting soon...</p>
-                <p className="text-sm text-emerald-600">
-                  All {currentGame.max_players} players have joined. The game will begin shortly!
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-gray-700">
-                  Waiting for <strong className="text-emerald-700">{playersNeeded} more player{playersNeeded !== 1 ? 's' : ''}</strong> to join
-                </p>
-                <p className="text-sm text-gray-600">
-                  Game will start when full or when the countdown reaches zero
-                </p>
-              </div>
-            )}
-
-            {/* Player Count Visual */}
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                <span>Players Joined</span>
-                <span>{playerCount}/{currentGame.max_players}</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${(playerCount / currentGame.max_players) * 100}%` }}
-                ></div>
-              </div>
-            </div>
-          </div>
-
-          {/* Leave Button */}
-          <div className="text-center">
-            <button
-              onClick={leaveGame}
-              disabled={isLeaving}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 focus:ring-2 focus:ring-gray-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLeaving ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Leaving...
-                </>
-              ) : (
-                'Leave Game'
-              )}
-            </button>
-          </div>
-        </div>
-      ) : (
-        // Available Game Card
-        <div className="bg-white rounded-xl shadow-lg border border-emerald-200 overflow-hidden">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-emerald-600 to-amber-600 text-white p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-bold">Next Scheduled Game</h3>
-                <p className="text-emerald-100">Game Code: <span className="font-mono font-bold">{currentGame.game_code}</span></p>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold">{playerCount}/{currentGame.max_players}</div>
-                <div className="text-emerald-100 text-sm">Players</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Game Info */}
-          <div className="p-6 space-y-4">
-            {/* Countdown Timer */}
-            <div className="text-center">
-              <CountdownTimer
-                targetTime={currentGame.scheduled_start_time}
-                onComplete={() => window.location.reload()}
-              />
-            </div>
-
-            {/* Game Details */}
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div className="space-y-1">
-                <Grid3x3 className="w-6 h-6 text-emerald-600 mx-auto" />
-                <div className="text-sm font-medium text-gray-800">6x6 Grid</div>
-                <div className="text-xs text-gray-600">Standard Size</div>
-              </div>
-              <div className="space-y-1">
-                <Trophy className="w-6 h-6 text-amber-600 mx-auto" />
-                <div className="text-sm font-medium text-gray-800">5 Treasures</div>
-                <div className="text-xs text-gray-600">To Discover</div>
-              </div>
-              <div className="space-y-1">
-                <Clock className="w-6 h-6 text-blue-600 mx-auto" />
-                <div className="text-sm font-medium text-gray-800">10 Digs</div>
-                <div className="text-xs text-gray-600">Starting Attempts</div>
-              </div>
-            </div>
-
-            {/* Player Status */}
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-gray-800">Player Status</span>
-                <Users className="w-5 h-5 text-gray-600" />
-              </div>
-              
-              {playerCount === 0 ? (
-                <p className="text-gray-600 text-sm">No players joined yet. Be the first!</p>
-              ) : isFull ? (
-                <p className="text-emerald-600 text-sm font-medium">Game is full! Starting soon...</p>
-              ) : (
-                <p className="text-gray-600 text-sm">
-                  Waiting for <strong>{playersNeeded} more player{playersNeeded !== 1 ? 's' : ''}</strong> to join
-                </p>
-              )}
-
-              {/* Real-time player count display */}
-              <div className="mt-3">
-                <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                  <span>Players Online</span>
-                  <span>{playerCount}/{currentGame.max_players}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-1">
-                  <div
-                    className="bg-emerald-600 h-1 rounded-full transition-all duration-300"
-                    style={{ width: `${(playerCount / currentGame.max_players) * 100}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Join Button */}
-            <button
-              onClick={joinGame}
-              disabled={isJoining || isFull}
-              className={`
-                w-full py-3 px-6 rounded-lg font-semibold transition-all
-                ${isFull
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-emerald-600 text-white hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500'
-                }
-                disabled:opacity-50 disabled:cursor-not-allowed
-              `}
-            >
-              {isJoining ? (
-                <span className="flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Joining Game...
-                </span>
-              ) : isFull ? (
-                'Game Full'
-              ) : (
-                `Join Game (${playerCount}/${currentGame.max_players})`
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Info Section */}
-      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-        <h3 className="font-semibold text-blue-800 mb-2">Real-Time Lobby System</h3>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>• Instant updates when players join or leave</li>
-          <li>• Games start automatically when 6 players join OR after 10 minutes</li>
-          <li>• Minimum 2 players required, otherwise game is cancelled</li>
-          <li>• All lobby games use 6x6 grid with 5 treasures and 10 dig attempts</li>
-          <li>• Powered by Socket.IO for real-time communication</li>
+      <section className="game-panel overflow-hidden md:col-start-1 md:row-start-1" aria-label="Lobby players">
+        <div className="flex items-center justify-between gap-3 p-4"><h2 className="text-xl font-bold">The crew</h2><span className="text-xs text-emerald-800">{game.players.length} / {game.maxPlayers} players</span></div>
+        <ul>{game.players.map(player => <li key={player.id} data-player-id={player.id} className={`flex items-center gap-3 border-t border-emerald-100 px-4 py-4 ${player.id === currentPlayerId ? 'own-player border-l-[3px] border-l-emerald-700' : ''}`}>
+          <UserRound size={18} className="shrink-0 text-emerald-700" aria-hidden="true" />
+          <span className="min-w-0 flex-1 break-words text-sm font-semibold">{displayPlayerName(player.id, player.displayName)} {player.id === currentPlayerId && <YouBadge />}</span>
+          <span className={`flex shrink-0 items-center gap-1 text-xs ${player.ready ? 'text-emerald-800' : 'text-gray-600'}`}>{player.ready && <Check size={14} aria-hidden="true" />}{player.ready ? 'Ready' : 'Waiting'}</span>
+        </li>)}
+          {openPlaces > 0 && <li className="border-t border-emerald-100 px-4 py-4 text-sm text-gray-500 md:hidden">{openPlaces} {openPlaces === 1 ? 'place' : 'places'} available</li>}
+          {Array.from({ length: openPlaces }, (_, i) => <li key={`open-${i}`} className="hidden items-center justify-between border-t border-emerald-100 px-4 py-4 text-sm text-gray-500 md:flex"><span>Open spot</span><span className="text-xs">Available</span></li>)}
         </ul>
-      </div>
+      </section>
     </div>
-  )
+  </section>
 }
