@@ -17,7 +17,7 @@ export const GameIntroduction: React.FC<GameIntroductionProps> = ({ onEnterLobby
             A Quick Treasure Hunt
           </h2>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Find five hidden relics on a 6×6 board. You have ten digs and {matchSeconds >= 60 ? `${matchSeconds / 60} minutes` : `${matchSeconds} seconds`} to earn the highest score.
+            Find eight hidden relics on a 6×6 board. You have ten digs and {matchSeconds >= 60 ? `${matchSeconds / 60} minutes` : `${matchSeconds} seconds`} to earn the highest score.
           </p>
         </div>
         
@@ -81,7 +81,7 @@ export const GameIntroduction: React.FC<GameIntroductionProps> = ({ onEnterLobby
               </div>
               <div>
                 <h4 className="font-semibold text-gray-800 mb-1">Join the Lobby</h4>
-                <p className="text-gray-600 text-sm">Games start when six players join, or when the countdown ends with at least two players. Everyone can press Ready to start sooner.</p>
+                <p className="text-gray-600 text-sm">Games start when six players join, or when the countdown ends with at least three players. Everyone can press Ready to start sooner.</p>
               </div>
             </div>
 

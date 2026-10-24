@@ -1,13 +1,10 @@
 import { randomInt } from 'node:crypto';
+import { resolveDig, rankPlayers, completionReason } from '../game/rules.js';
 
 export const DEFAULTS = { lobbySeconds: 600, matchSeconds: 120, maxPlayers: 6 };
 export class GameError extends Error {}
 const iso = ms => new Date(ms).toISOString();
 const boardId = (sessionId, uid) => `${sessionId}_${uid}`;
-const rankPlayers = players => [...players].sort((a, b) => b.score - a.score).map((p, _i, sorted) => ({
-  ...p, rank: sorted.findIndex(other => other.score === p.score) + 1,
-  digsUsed: p.acceptedMoves || 0
-}));
 
 export class GameService {
   constructor(db, options = {}) {
@@ -34,7 +31,7 @@ export class GameService {
         if (existing.exists && existing.data().status === 'scheduled') return { id: existing.id, ...existing.data() };
       }
       const treasures = [];
-      while (treasures.length < 5) {
+      while (treasures.length < 8) {
         const position = { row: randomInt(6), col: randomInt(6) };
         if (!treasures.some(p => p.row === position.row && p.col === position.col)) treasures.push(position);
       }
@@ -42,8 +39,8 @@ export class GameService {
       const gameCode = Array.from({ length: 3 }, () => String.fromCharCode(65 + randomInt(26))).join('') +
         Array.from({ length: 3 }, () => randomInt(10)).join('');
       const game = {
-        schemaVersion: 2, isLobbyGame: true, gameCode, gridSize: 6, treasureCount: 5, digAttempts: 10,
-        gameSettings: { gridSize: 6, treasureCount: 5, digAttempts: 10, gameMode: 'multiplayer' },
+        schemaVersion: 2, isLobbyGame: true, gameCode, gridSize: 6, treasureCount: 8, digAttempts: 10,
+        gameSettings: { gridSize: 6, treasureCount: 8, digAttempts: 10, gameMode: 'multiplayer' },
         treasurePositions: treasures, allDiscoveries: [], participants: {}, participantIds: [],
         maxPlayers: 6, matchSeconds: this.config.matchSeconds, status: 'scheduled',
         scheduledStartTime: iso(now + this.config.lobbySeconds * 1000), createdAt: iso(now), lastUpdated: iso(now), startTime: ''
@@ -58,8 +55,8 @@ export class GameService {
 
   startPatch(game, participants, now) {
     const ids = Object.keys(participants);
-    const reason = ids.length >= 6 ? 'full' : ids.length >= 2 && ids.every(id => participants[id].ready) ? 'ready' :
-      now >= Date.parse(game.scheduledStartTime) && ids.length >= 2 ? 'countdown' : null;
+    const reason = ids.length >= 6 ? 'full' : ids.length >= 3 && ids.every(id => participants[id].ready) ? 'ready' :
+      now >= Date.parse(game.scheduledStartTime) && ids.length >= 3 ? 'countdown' : null;
     return reason ? {
       status: 'active', startReason: reason, participantIds: ids, startedPlayerCount: ids.length,
       startTime: iso(now), deadline: iso(now + game.matchSeconds * 1000), lastUpdated: iso(now)
@@ -167,36 +164,23 @@ export class GameService {
         return { duplicate: true, completed: game.status === 'completed', board: { id: refs[index].id, ...player } };
       }
       const now = this.now();
-      if (game.status !== 'active' || now >= Date.parse(game.deadline)) throw new GameError('This match has ended.');
-      const board = typeof player.boardState === 'string' ? JSON.parse(player.boardState) : player.boardState;
-      if (board[row][col].isRevealed || player.remainingDigs <= 0) throw new GameError('That dig is not available.');
-      const square = board[row][col];
-      square.isRevealed = true;
-      let score = player.score;
-      let remainingDigs = player.remainingDigs - 1;
-      const discoveries = [...player.discoveries];
-      const allDiscoveries = [...game.allDiscoveries];
-      if (square.isTreasure) {
-        const order = allDiscoveries.filter(d => d.row === row && d.col === col).length + 1;
-        const points = Math.max(0, 100 - (order - 1) * 20);
-        square.discoveryCount = order;
-        const discovery = { playerId: uid, row, col, points, discoveryOrder: order, timestamp: iso(now) };
-        allDiscoveries.push(discovery);
-        discoveries.push(discovery);
-        score += points;
-        remainingDigs++;
-      }
+      let resolved;
+      try {
+        resolved = resolveDig({ ...player, boardState: typeof player.boardState === 'string' ? JSON.parse(player.boardState) : player.boardState },
+          game.allDiscoveries, { row, col }, { now, deadline: Date.parse(game.deadline), status: game.status });
+      } catch (error) { throw new GameError(error.message); }
+      const allDiscoveries = resolved.allDiscoveries;
       const updated = {
-        ...player, boardState: JSON.stringify(board), score, remainingDigs, discoveries,
-        acceptedMoves: (player.acceptedMoves || 0) + 1,
+        ...resolved.player, boardState: JSON.stringify(resolved.player.boardState),
         processedMoves: { ...player.processedMoves, [requestId]: { row, col } }
       };
       tx.update(refs[index], updated);
       const allPlayers = boards.map((b, i) => ({ id: b.id, ...(i === index ? updated : b.data()) }));
-      const finished = allPlayers.every(p => p.remainingDigs === 0);
+      const reason = completionReason(allPlayers, Date.parse(game.deadline), now, game.treasureCount);
+      const finished = reason !== null;
       tx.update(ref, {
         allDiscoveries, acceptedMoves: (game.acceptedMoves || 0) + 1, lastUpdated: iso(now),
-        ...(finished ? this.finishPatch(allPlayers, 'digs-exhausted', now) : {})
+        ...(finished ? this.finishPatch(allPlayers, reason, now) : {})
       });
       return { duplicate: false, completed: finished, board: { id: refs[index].id, ...updated } };
     });
@@ -227,9 +211,11 @@ export class GameService {
         if (!patch.status && now >= Date.parse(game.scheduledStartTime)) patch = {
           status: 'cancelled', endTime: iso(now), completionReason: 'not-enough-players', finalResults: [], lastUpdated: iso(now)
         };
-      } else if (game.status === 'active' && now >= Date.parse(game.deadline)) {
+      } else if (game.status === 'active') {
         const boards = await tx.getAll(...game.participantIds.map(uid => this.db.collection('playerBoards').doc(boardId(sessionId, uid))));
-        patch = { ...this.finishPatch(boards.map(b => ({ id: b.id, ...b.data() })), 'deadline', Date.parse(game.deadline)), lastUpdated: iso(now) };
+        const players = boards.map(b => ({ id: b.id, ...b.data() }));
+        const reason = completionReason(players, Date.parse(game.deadline), now, game.treasureCount);
+        if (reason) patch = { ...this.finishPatch(players, reason, reason === 'deadline' ? Date.parse(game.deadline) : now), lastUpdated: iso(now) };
       }
       if (patch.status) tx.update(ref, patch);
       return { id: sessionId, ...game, ...patch };

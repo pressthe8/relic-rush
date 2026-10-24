@@ -1,8 +1,6 @@
 import { GameState, Position, Square, GameSettings, PlayerState } from '../types';
 
-export const calculatePoints = (discoveryCount: number): number => {
-  return Math.max(0, 100 - (discoveryCount - 1) * 20);
-};
+export { calculatePoints } from '../../game/rules.js';
 
 export const createInitialBoard = (size: number): Square[][] => {
   return Array(size).fill(null).map(() =>

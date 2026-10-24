@@ -57,7 +57,7 @@ export const LobbyGameCard: React.FC<LobbyGameCardProps> = ({ game, onJoin, isJo
           </div>
           <div className="space-y-1">
             <Trophy className="w-6 h-6 text-amber-600 mx-auto" />
-            <div className="text-sm font-medium text-gray-800">5 Treasures</div>
+            <div className="text-sm font-medium text-gray-800">8 Treasures</div>
             <div className="text-xs text-gray-600">To Discover</div>
           </div>
           <div className="space-y-1">
@@ -135,7 +135,7 @@ export const LobbyGameCard: React.FC<LobbyGameCardProps> = ({ game, onJoin, isJo
         {/* Game Rules Reminder */}
         <div className="text-xs text-gray-500 text-center space-y-1">
           <p>Game starts when full OR after countdown expires</p>
-          <p>Minimum 2 players required to start</p>
+          <p>Minimum 3 players required to start</p>
         </div>
       </div>
     </div>

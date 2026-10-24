@@ -64,6 +64,7 @@ export interface GameSession {
   id: string
   gameCode: string
   gridSize: number
+  treasureCount: number
   matchSeconds?: number
   status: 'scheduled' | 'active' | 'completed' | 'cancelled'
   allDiscoveries: Discovery[]

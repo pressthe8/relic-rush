@@ -1,0 +1,4 @@
+[
+  { "id": "baseline", "treasureCount": 5, "startingDigs": 10, "durationSeconds": 120, "scoring": "current" },
+  { "id": "six-treasures-gentle", "treasureCount": 6, "startingDigs": 10, "durationSeconds": 90, "scoring": "gentle" }
+]

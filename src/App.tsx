@@ -50,7 +50,7 @@ function GameApp() {
         <button className="game-button mt-7" disabled aria-describedby="signup-coming-soon">Sign up / Login</button>
         <p id="signup-coming-soon" className="mt-2 text-xs text-gray-600">Coming soon</p>
       </section> : introduction ? <GameIntroduction matchSeconds={game.lobby?.matchSeconds} onEnterLobby={() => setIntroduction(false)} /> : finished ?
-        <GameFinale finalResults={session.finalResults || []} completionReason={session.completionReason} currentPlayerId={game.uid}
+        <GameFinale treasureCount={session.treasureCount} finalResults={session.finalResults || []} completionReason={session.completionReason} currentPlayerId={game.uid}
           onPlayAgain={game.resetGame} onBackToHome={() => { game.resetGame(); setIntroduction(true) }} /> :
         session?.status === 'active' ? <>
           {game.playerBoard ? <MultiplayerBoard playerBoard={game.playerBoard} standings={game.standings} currentPlayerId={game.uid} currentRank={game.currentRank} onDig={game.dig}

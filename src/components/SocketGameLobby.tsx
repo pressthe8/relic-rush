@@ -37,12 +37,12 @@ export function SocketGameLobby({ game, currentPlayerId, hasJoined, ready, disab
         </div>
           <dl className="mt-4 grid grid-cols-4 gap-2 text-xs text-gray-600">
             <div><dt>Board</dt><dd className="mt-1 font-semibold text-gray-800">6 × 6</dd></div>
-            <div><dt>Treasures</dt><dd className="mt-1 font-semibold text-gray-800">5 relics</dd></div>
+            <div><dt>Treasures</dt><dd className="mt-1 font-semibold text-gray-800">{game.treasureCount} relics</dd></div>
             <div><dt>Initial digs</dt><dd className="mt-1 font-semibold text-gray-800">10 digs</dd></div>
             <div><dt>Duration</dt><dd className="mt-1 font-semibold text-gray-800">{game.matchSeconds % 60 === 0 ? `${game.matchSeconds / 60} min` : `${game.matchSeconds} sec`}</dd></div>
           </dl>
         </div>
-        <p className="mt-3 text-xs leading-relaxed text-gray-600">{game.players.length < 2 ? 'Waiting for another player before we can start. ' : ready && hasJoined ? 'You’re ready. ' : ''}Starts when six players join, everyone is ready with at least two players, or the countdown ends with at least two players.</p>
+        <p className="mt-3 text-xs leading-relaxed text-gray-600">{game.players.length < 3 ? 'Waiting for at least three players before we can start. ' : ready && hasJoined ? 'You’re ready. ' : ''}Starts when six players join, everyone is ready with at least three players, or the countdown ends with at least three players.</p>
       </div>
       <section className="game-panel overflow-hidden md:col-start-1 md:row-start-1" aria-label="Lobby players">
         <div className="flex items-center justify-between gap-3 p-4"><h2 className="text-xl font-bold">The crew</h2><span className="text-xs text-emerald-800">{game.players.length} / {game.maxPlayers} players</span></div>

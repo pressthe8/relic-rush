@@ -1,14 +1,14 @@
 # Relic Rush
 
-A quick competitive treasure hunt for 2–6 invited players. The supported playtest mode uses a 6×6 grid, five shared treasures, ten initial digs, and two-minute matches. Each treasure grants a bonus dig. Discoveries earn 100, 80, 60, 40, 20, then zero points according to the order players find that treasure. Heat-map hints show unique treasures opponents have found in a region that you have not yet found.
+A quick competitive treasure hunt for 3–6 invited players. The supported playtest mode uses a 6×6 grid, eight shared treasures, ten initial digs, and two-minute matches. Each treasure grants a bonus dig. Discoveries earn 100, 80, 60, 40, 20, then zero points according to the order players find that treasure. Heat-map hints show unique treasures opponents have found in a region that you have not yet found.
 
 ## Lobby and match flow
 
-The lobby has a ten-minute countdown. It starts when six players join, when the countdown expires with at least two players, or when at least two players have joined and everyone presses **Ready**. Readiness is optional; it does not block the other start conditions. New players begin unready. A new lobby appears immediately after a match starts, and spectators stay there.
+The lobby has a ten-minute countdown. It starts when six players join, when the countdown expires with at least three players, or when at least three players have joined and everyone presses **Ready**. Readiness is optional; it does not block the other start conditions. New players begin unready. A new lobby appears immediately after a match starts, and spectators stay there.
 
-With fewer than two players at countdown expiry, the session is cancelled and replaced. A waiting player who disconnects is removed from that lobby's membership; reconnecting can join again. Multiple tabs share a guest identity, and closing one tab does not remove a player while another tab stays connected.
+With fewer than three players at countdown expiry, the session is cancelled and replaced. A waiting player who disconnects is removed from that lobby's membership; reconnecting can join again. Multiple tabs share a guest identity, and closing one tab does not remove a player while another tab stays connected.
 
-Matches end after 120 seconds or when everyone exhausts their digs. Scores earned before the deadline remain valid. Refreshing or reconnecting restores progress with the original deadline. Returning after expiry shows results. Equal scores share a rank. **Play Again** returns to the next lobby.
+Matches end after 120 seconds or when every player has either exhausted their digs or discovered every relic. Scores earned before the deadline remain valid. Refreshing or reconnecting restores progress with the original deadline. Returning after expiry shows results. Equal scores share a rank. **Play Again** returns to the next lobby.
 
 ## Local setup with the existing development project
 
@@ -80,7 +80,9 @@ npm run test:playtest
 
 Both emulator commands explicitly use the fake project **demo-relic-rush**, not the development database. Integration tests refuse to run without both emulators. Browser tests run the frontend and server with demo configuration and shortened timers to exercise expiry quickly; integration checks verify the actual 120-second default. Do not run emulator suites against an existing shared emulator session: the integration suite resets the demo database between tests.
 
-Tests cover scoring, independent board copies, unique treasure placement, hints, readiness and capacity races, spectators, simultaneous discoveries, duplicate moves, disconnects, multiple tabs, recovery, deadline expiry, early completion, ties, archive retries, and server restart. Browser checks exercise two- and six-player flows, a mobile viewport, slower requests, refresh, reconnect, results, and replay. Failure traces and screenshots are written to `.test-results/`.
+Browser checks bind Vite explicitly to `127.0.0.1:5173` and wait for the proxied `/health` endpoint so both the frontend and game server are ready. Keep that address aligned with Playwright's base URL; `localhost` can resolve to IPv6 on CI runners. An occupied frontend port fails startup rather than silently choosing another port.
+
+Tests cover scoring, independent board copies, unique treasure placement, hints, readiness and capacity races, spectators, simultaneous discoveries, duplicate moves, disconnects, multiple tabs, recovery, deadline expiry, early completion, ties, archive retries, and server restart. Browser checks exercise three- and six-player flows, a mobile viewport, slower requests, refresh, reconnect, results, and replay. Failure traces and screenshots are written to `.test-results/`.
 
 ## Data and recovery
 
@@ -89,3 +91,13 @@ New sessions have `schemaVersion: 2`; they retain the existing collections and a
 History and aggregate stats are written in a single transaction with an archive marker. Retrying cannot double-count a match. Source sessions and boards are retained, including when archiving fails. Archive failures are retried by the maintenance loop and after restart. A future retention policy is tracked in [ROADMAP.md](ROADMAP.md).
 
 This release is intended for invited testers. Hidden board information is still present in client-readable Firestore state; public integrity hardening and dependency maintenance are tracked in the roadmap.
+
+## Automated balance experiments
+
+The deterministic harness lives separately in `tools/playtesting/`. Run `npm run balance:test` for its checks, then `npm run balance -- --preset screen` for the initial parameter sweep, including 4, 6, 8 and 10 relics against the five-relic baseline. It needs no LLM calls, credentials, or hosted services. Reports and replayable examples go into ignored `.balance-results/`. The default screen runs 2.88 million simulated matches; use `--matches 20` for a smoke run.
+
+See [architecture.md](architecture.md) for module boundaries, timing assumptions, experiment definitions, confirmation and replay commands, and how to extend the harness. Keep that document updated alongside architecture changes. `npm run balance:emulators` checks simulation/server agreement using only local Firebase emulators.
+
+[Initial screening findings](tools/playtesting/FINDINGS.md) compare five, eight and ten relics, separate two-player concerns, and identify scoring combinations for confirmation.
+
+The adversarial suite adds probability-aware hunting, opportunistic waiting, adaptive racing, lead protection and late sprinting for every player count from three through six. Run `npm run balance -- --preset tune --output .balance-results/tuning`, then `npm run balance -- --suite adversarial --preset screen --tactics .balance-results/tuning/tactics.lock.json`. The default training run uses 110,592 matches; the screen uses 2,232,000. See the architecture document for seed separation, frozen parameters, mixed groups and targeted confirmation.

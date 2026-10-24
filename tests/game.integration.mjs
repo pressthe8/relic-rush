@@ -24,26 +24,27 @@ afterEach(async () => {
   if (gameServer) { await gameServer.close(); gameServer = null; }
 });
 const players = ['alice', 'bob', 'charlie', 'david', 'erin', 'frank'];
-async function join(count = 2) {
+async function join(count = 3) {
   const lobby = await service.ensureLobby();
   await Promise.all(players.slice(0, count).map(uid => service.changeLobby(uid, lobby.id, 'join')));
   return lobby.id;
 }
-async function ready(sessionId) {
-  await service.changeLobby('alice', sessionId, 'ready', true);
-  return service.changeLobby('bob', sessionId, 'ready', true);
+async function ready(sessionId, count = 3) {
+  let game;
+  for (const uid of players.slice(0, count)) game = await service.changeLobby(uid, sessionId, 'ready', true);
+  return game;
 }
 const readGame = async id => (await db.collection('gameSessions').doc(id).get()).data();
 const readBoard = async (id, uid) => (await db.collection('playerBoards').doc(`${id}_${uid}`).get()).data();
 const move = (id, requestId, position) => ({ sessionId: id, requestId, ...position });
 
 test('ready toggles, newcomers, and simultaneous start triggers freeze membership exactly once', async () => {
-  const id = await join();
+  const id = await join(2);
   await service.changeLobby('alice', id, 'ready', true);
   await service.changeLobby('alice', id, 'ready', false);
   assert.equal((await readGame(id)).status, 'scheduled');
   await service.changeLobby('charlie', id, 'join');
-  await ready(id);
+  await ready(id, 2);
   assert.equal((await readGame(id)).status, 'scheduled');
   now += 600000;
   await Promise.allSettled([service.changeLobby('charlie', id, 'ready', true), service.settle(id), service.settle(id)]);
@@ -57,7 +58,7 @@ test('ready toggles, newcomers, and simultaneous start triggers freeze membershi
   assert.deepEqual(next.participants, {});
 });
 
-test('full lobby starts without readiness and countdown starts two unready players', async () => {
+test('full lobby starts without readiness and countdown starts three unready players', async () => {
   const full = await join(6);
   assert.equal((await readGame(full)).startReason, 'full');
   const timed = await join();
@@ -131,12 +132,12 @@ test('all digs exhausted finishes early and ties share ranks', async () => {
   const game = await ready(id);
   const empty = Array.from({ length: 36 }, (_, i) => ({ row: Math.floor(i / 6), col: i % 6 }))
     .filter(p => !game.treasurePositions.some(t => t.row === p.row && t.col === p.col)).slice(0, 10);
-  for (const uid of players.slice(0, 2)) for (const [i, position] of empty.entries()) await service.dig(uid, move(id, `request-${uid}-${i}`, position));
+  for (const uid of players.slice(0, 3)) for (const [i, position] of empty.entries()) await service.dig(uid, move(id, `request-${uid}-${i}`, position));
   const result = await readGame(id);
   assert.equal(result.status, 'completed');
   assert.equal(result.completionReason, 'digs-exhausted');
-  assert.deepEqual(result.finalResults.map(p => p.rank), [1, 1]);
-  assert.equal(result.acceptedMoves, 20);
+  assert.deepEqual(result.finalResults.map(p => p.rank), [1, 1, 1]);
+  assert.equal(result.acceptedMoves, 30);
 });
 
 test('restart preserves waiting membership, active deadline, and board progress', async () => {
@@ -144,11 +145,11 @@ test('restart preserves waiting membership, active deadline, and board progress'
   const active = await ready(activeId);
   await service.dig('alice', move(activeId, 'request-restart', active.treasurePositions[0]));
   const waiting = await service.ensureLobby();
-  await service.changeLobby('charlie', waiting.id, 'join');
+  await service.changeLobby('david', waiting.id, 'join');
   service = new GameService(db, { now: () => now });
   await service.maintenance();
   assert.equal((await service.ensureLobby()).id, waiting.id);
-  assert.equal((await service.recover('charlie')).id, waiting.id);
+  assert.equal((await service.recover('david')).id, waiting.id);
   assert.equal((await service.recover('alice')).deadline, active.deadline);
   assert.equal((await readBoard(activeId, 'alice')).score, 100);
   now += 120001;
@@ -197,7 +198,7 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 test('authenticated sockets exclude spectators and only the last tab disconnect removes lobby membership', async () => {
   gameServer = createGameServer(db, token => app.auth().verifyIdToken(token), { tickMs: 100 });
   await gameServer.start();
-  const a = await client(), b = await client(), spectator = await client();
+  const a = await client(), b = await client(), c = await client(), spectator = await client();
   const id = (await gameServer.service.ensureLobby()).id;
   let spectatorStarts = 0;
   spectator.socket.on('session', () => spectatorStarts++);
@@ -215,6 +216,8 @@ test('authenticated sockets exclude spectators and only the last tab disconnect 
   a.socket.connect();
   await new Promise(resolve => a.socket.once('connect', resolve));
   await command(a.socket, 'joinGame', { sessionId: id });
+  await command(c.socket, 'joinGame', { sessionId: id });
+  await command(c.socket, 'setReady', { sessionId: id, ready: true });
   await command(a.socket, 'setReady', { sessionId: id, ready: true });
   await command(b.socket, 'setReady', { sessionId: id, ready: true });
   await wait(150);
@@ -280,6 +283,8 @@ test('profile names flow through lobby, boards, and results without renaming ret
   await service.changeLobby('newguest123', lobby.id, 'join', false, 'Different name');
   game = await readGame(lobby.id);
   assert.equal(game.participants.newguest123.displayName, 'Anning-newgue');
+  await service.changeLobby('charlie', lobby.id, 'join');
+  await service.changeLobby('charlie', lobby.id, 'ready', true);
   await service.changeLobby('newguest123', lobby.id, 'ready', true);
   await service.changeLobby('legacy123', lobby.id, 'ready', true);
   now += 121000;
@@ -287,4 +292,62 @@ test('profile names flow through lobby, boards, and results without renaming ret
   game = await readGame(lobby.id);
   assert.equal(game.finalResults.find(p => p.playerId === 'newguest123').mockPlayerId, 'Anning-newgue');
   assert.equal(game.finalResults.find(p => p.playerId === 'legacy123').mockPlayerId, 'Player legacy');
+});
+
+
+test('two ready players cannot start, including at countdown expiry', async () => {
+  const id = await join(2);
+  await ready(id, 2);
+  assert.equal((await readGame(id)).status, 'scheduled');
+  now += 600000;
+  await service.settle(id);
+  assert.equal((await readGame(id)).status, 'cancelled');
+  assert.equal((await readGame(id)).completionReason, 'not-enough-players');
+});
+
+test('three ready players start with eight distinct relics on every board', async () => {
+  const id = await join();
+  const game = await ready(id);
+  assert.equal(game.startReason, 'ready');
+  assert.equal(game.treasureCount, 8);
+  assert.equal(game.gameSettings.treasureCount, 8);
+  assert.equal(new Set(game.treasurePositions.map(p => `${p.row},${p.col}`)).size, 8);
+  for (const uid of players.slice(0, 3)) {
+    const board = await readBoard(id, uid);
+    assert.equal(JSON.parse(board.boardState).flat().filter(s => s.isTreasure).length, 8);
+  }
+});
+
+for (const mixed of [false, true]) test(`${mixed ? 'mixed exhausted and all-found' : 'all-found'} players finish immediately, with duplicate retry preserved`, async () => {
+  const id = await join();
+  const game = await ready(id);
+  if (mixed) await db.collection('playerBoards').doc(`${id}_alice`).update({ remainingDigs: 0 });
+  else for (const [i, position] of game.treasurePositions.entries()) await service.dig('alice', move(id, `all-alice-${i}`, position));
+  assert.equal((await readGame(id)).status, 'active');
+  for (const [i, position] of game.treasurePositions.entries()) await service.dig('bob', move(id, `all-bob-${i}`, position));
+  assert.equal((await readGame(id)).status, 'active');
+  let last;
+  for (const [i, position] of game.treasurePositions.entries()) {
+    last = move(id, `all-charlie-${i}`, position);
+    await service.dig('charlie', last);
+  }
+  const result = await readGame(id);
+  assert.equal(result.status, 'completed');
+  assert.equal(result.completionReason, 'players-finished');
+  assert.equal(result.finalResults.length, 3);
+  assert.equal((await service.dig('charlie', last)).duplicate, true);
+  await assert.rejects(service.dig('bob', move(id, 'after-all-found', { row: 5, col: 5 })), /ended/);
+  await service.archive(id);
+  assert.equal((await db.collection('gameHistory').doc(id).get()).data().completionReason, 'players-finished');
+});
+
+test('recovery settles already-finished players using the stored relic count', async () => {
+  const id = await join();
+  await ready(id);
+  // A persisted older match with five relics must not wait for the new default of eight.
+  await db.collection('gameSessions').doc(id).update({ treasureCount: 5 });
+  for (const uid of players.slice(0, 3)) await db.collection('playerBoards').doc(`${id}_${uid}`).update({ discoveries: Array.from({ length: 5 }, (_, i) => ({ row: 0, col: i })) });
+  service = new GameService(db, { now: () => now });
+  await service.maintenance();
+  assert.equal((await readGame(id)).completionReason, 'players-finished');
 });
