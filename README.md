@@ -80,6 +80,8 @@ npm run test:playtest
 
 Both emulator commands explicitly use the fake project **demo-relic-rush**, not the development database. Integration tests refuse to run without both emulators. Browser tests run the frontend and server with demo configuration and shortened timers to exercise expiry quickly; integration checks verify the actual 120-second default. Do not run emulator suites against an existing shared emulator session: the integration suite resets the demo database between tests.
 
+Browser checks bind Vite explicitly to `127.0.0.1:5173` and wait for the proxied `/health` endpoint so both the frontend and game server are ready. Keep that address aligned with Playwright's base URL; `localhost` can resolve to IPv6 on CI runners. An occupied frontend port fails startup rather than silently choosing another port.
+
 Tests cover scoring, independent board copies, unique treasure placement, hints, readiness and capacity races, spectators, simultaneous discoveries, duplicate moves, disconnects, multiple tabs, recovery, deadline expiry, early completion, ties, archive retries, and server restart. Browser checks exercise three- and six-player flows, a mobile viewport, slower requests, refresh, reconnect, results, and replay. Failure traces and screenshots are written to `.test-results/`.
 
 ## Data and recovery

@@ -11,7 +11,10 @@ export default defineConfig({
     launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE } : {}
   },
   webServer: {
-    command: 'node tests/reset-emulators.mjs && npm run dev', url: 'http://127.0.0.1:5173', reuseExistingServer: false, timeout: 30000,
+    // Match the browser's IPv4 URL even when localhost resolves to IPv6 first.
+    command: 'node tests/reset-emulators.mjs && concurrently --kill-others-on-fail "npm run server" "vite --host 127.0.0.1 --strictPort"',
+    url: 'http://127.0.0.1:5173/health', reuseExistingServer: false, timeout: 30000,
+    stdout: 'pipe',
     env: {
       FIREBASE_PROJECT_ID: 'demo-relic-rush', VITE_FIREBASE_PROJECT_ID: 'demo-relic-rush',
       VITE_FIREBASE_API_KEY: 'demo-key', VITE_FIREBASE_AUTH_DOMAIN: 'demo-relic-rush.firebaseapp.com',
