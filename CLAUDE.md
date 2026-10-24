@@ -1,5 +1,7 @@
 # Relic Rush — Claude Code Guide
 
+> This guide contains historical setup and implementation notes. Use [README.md](README.md) for current operation and [architecture.md](architecture.md) for module boundaries and extension instructions; update the architecture document alongside architectural changes.
+
 ## Project Overview
 
 **Relic Rush** is a real-time competitive multiplayer treasure-hunting game. Players dig a shared hidden grid, compete for first-discovery bonuses, and use a heat-map hint system showing where opponents are finding more treasure.

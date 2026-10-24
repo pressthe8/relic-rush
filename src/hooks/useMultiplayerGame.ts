@@ -13,6 +13,7 @@ export interface LobbyGame {
   scheduledStartTime: string
   maxPlayers: number
   matchSeconds: number
+  treasureCount: number
   players: { id: string; ready: boolean; displayName?: string }[]
 }
 type Reply<T> = { ok: boolean; data: T; error?: string; retryable?: boolean }

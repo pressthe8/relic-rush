@@ -16,21 +16,25 @@ async function guests(browser: Browser, count: number) {
   return { contexts, pages }
 }
 
-test('two players ready up, dig, refresh, reconnect, time out, and replay on mobile', async ({ browser }, testInfo) => {
-  const { contexts, pages } = await guests(browser, 3)
-  const [a, b, spectator] = pages
+test('three players ready up, dig, refresh, reconnect, time out, and replay on mobile', async ({ browser }, testInfo) => {
+  const { contexts, pages } = await guests(browser, 4)
+  const [a, b, c, spectator] = pages
   const errors: string[] = []
   pages.forEach(page => page.on('pageerror', error => errors.push(error.message)))
   try {
     await a.getByRole('button', { name: 'Join game', exact: true }).click()
     await b.getByRole('button', { name: 'Join game', exact: true }).click()
     await expect(a.getByRole('region', { name: 'Lobby players' }).locator('.own-player')).toContainText('You')
+    await expect(a.getByText('8 relics', { exact: true })).toBeVisible()
     await expect(a.getByTestId('current-player')).toHaveText(/^[A-Za-z]+-[A-Za-z0-9]{6}$/)
     await a.getByRole('button', { name: 'Ready', exact: true }).click()
     await b.getByRole('button', { name: 'Ready', exact: true }).click()
+    await expect(a.getByRole('heading', { name: 'Game Lobby' })).toBeVisible()
+    await c.getByRole('button', { name: 'Join game', exact: true }).click()
+    await c.getByRole('button', { name: 'Ready', exact: true }).click()
     await expect(a.getByText('Time left', { exact: true })).toBeVisible()
     await expect(b.getByText('Time left', { exact: true })).toBeVisible()
-    await expect(a.getByRole('table', { name: 'Leaderboard' }).locator('tbody tr')).toHaveCount(2)
+    await expect(a.getByRole('table', { name: 'Leaderboard' }).locator('tbody tr')).toHaveCount(3)
     await expect(a.getByTestId('mobile-rank')).toHaveText(/\d+(st|nd|rd|th)/)
     await expect(b.getByTestId('mobile-rank')).toBeHidden()
     await expect(spectator.getByRole('heading', { name: 'Game Lobby' })).toBeVisible()
@@ -179,6 +183,7 @@ test('bright UX: live rankings, fill hints, mobile sizes, zero digs, and persona
       acceptedMoves: 10, digsUsed: 10, rank: i === 0 ? 3 : i < 3 ? 1 : 4 }))
     await game.ref.update({ status: 'completed', completionReason: 'deadline', finalResults })
     await expect(mobile.getByRole('heading', { name: 'You finished 3rd' })).toBeVisible()
+    await expect(mobile.getByRole('region', { name: 'Your result' })).toContainText('3 / 8')
     await expect(mobile.getByRole('region', { name: 'Your result' })).not.toContainText('Player')
     await expect(mobile.getByText('Hunt complete', { exact: true })).toHaveCount(0)
     await expect(mobile.getByRole('button', { name: 'Back to Home' })).toBeVisible()
@@ -259,11 +264,13 @@ test('a transient read permission failure recovers without dropping waiting memb
 test('touch digs keep committed progress when an older board update arrives', async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
   const opponentContext = await browser.newContext()
+  const thirdContext = await browser.newContext()
+  const third = await thirdContext.newPage()
   const mobile = await context.newPage()
   const opponent = await opponentContext.newPage()
   const db = (admin.apps.length ? admin.app() : admin.initializeApp({ projectId: 'demo-relic-rush' })).firestore()
   try {
-    for (const page of [mobile, opponent]) {
+    for (const page of [mobile, opponent, third]) {
       await page.goto('/')
       await page.getByRole('button', { name: 'Join game', exact: true }).click()
       await page.getByRole('button', { name: 'Ready', exact: true }).click()
@@ -290,13 +297,15 @@ test('touch digs keep committed progress when an older board update arrives', as
     const fill = await untouched.evaluate(el => getComputedStyle(el).backgroundColor)
     await untouched.dispatchEvent('mouseover')
     expect(await untouched.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(fill)
-  } finally { await context.close(); await opponentContext.close() }
+  } finally { await context.close(); await opponentContext.close(); await thirdContext.close() }
 })
 
 
 test('new guests receive persistent explorer names while existing guests keep legacy names', async ({ browser }) => {
   const freshContext = await browser.newContext()
   const existingContext = await browser.newContext()
+  const thirdContext = await browser.newContext()
+  const third = await thirdContext.newPage()
   const fresh = await freshContext.newPage()
   const existing = await existingContext.newPage()
   const db = (admin.apps.length ? admin.app() : admin.initializeApp({ projectId: 'demo-relic-rush' })).firestore()
@@ -327,7 +336,9 @@ test('new guests receive persistent explorer names while existing guests keep le
     // Closing the last socket leaves a waiting lobby; rejoin with the same identity.
     await fresh.getByRole('button', { name: 'Join game', exact: true }).click()
     await expect(fresh.getByRole('button', { name: 'Ready', exact: true })).toBeEnabled()
-    for (const page of [fresh, existing]) await page.getByRole('button', { name: 'Ready', exact: true }).click()
+    await third.goto('/')
+    await third.getByRole('button', { name: 'Join game', exact: true }).click()
+    for (const page of [fresh, existing, third]) await page.getByRole('button', { name: 'Ready', exact: true }).click()
     const live = fresh.getByRole('table', { name: 'Leaderboard' }).locator(`[data-player-id="${uid}"]`)
     await expect(live).toContainText(name)
     await expect(existing.getByRole('table', { name: 'Leaderboard' })).toContainText(name)
@@ -338,5 +349,5 @@ test('new guests receive persistent explorer names while existing guests keep le
     await fresh.getByRole('button', { name: 'Play Again' }).click()
     await fresh.getByRole('button', { name: 'Join game', exact: true }).click()
     await expect(fresh.getByRole('region', { name: 'Lobby players' }).locator('.own-player')).toContainText(name)
-  } finally { await Promise.all([freshContext.close(), existingContext.close()]) }
+  } finally { await Promise.all([freshContext.close(), existingContext.close(), thirdContext.close()]) }
 })

@@ -7,3 +7,6 @@ dist/
 playwright-report/
 *-debug.log
 .firebase/
+
+# Local balance experiment runs
+.balance-results/

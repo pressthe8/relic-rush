@@ -41,7 +41,7 @@ export function createGameServer(db, verifyToken, options = {}) {
 
   const publicLobby = game => ({
     id: game.id, gameCode: game.gameCode, scheduledStartTime: game.scheduledStartTime,
-    maxPlayers: game.maxPlayers, matchSeconds: game.matchSeconds, status: game.status,
+    maxPlayers: game.maxPlayers, matchSeconds: game.matchSeconds, treasureCount: game.treasureCount, status: game.status,
     players: Object.entries(game.participants).map(([id, p]) => ({ id, ready: p.ready, ...(p.displayName ? { displayName: p.displayName } : {}) }))
   });
   async function publish(game) {

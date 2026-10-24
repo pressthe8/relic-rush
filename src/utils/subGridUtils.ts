@@ -1,4 +1,5 @@
-import { Position } from '../types'
+import type { Position } from '../types'
+import { regionIndex as getSubGridIndex } from '../../game/rules.js'
 
 export interface SubGridHints {
   [subGridIndex: string]: number // subgrid index -> discovery count
@@ -8,12 +9,7 @@ export interface SubGridHints {
  * Calculate which sub-grid (0-8) a position belongs to
  * Grid is divided into 3x3 sub-grids like tic-tac-toe
  */
-export const getSubGridIndex = (position: Position, gridSize: number): number => {
-  const subGridSize = gridSize / 3
-  const subGridRow = Math.floor(position.row / subGridSize)
-  const subGridCol = Math.floor(position.col / subGridSize)
-  return subGridRow * 3 + subGridCol
-}
+export { getSubGridIndex }
 
 /**
  * Get the coordinate ranges for a sub-grid
