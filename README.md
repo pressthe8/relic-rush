@@ -46,6 +46,14 @@ The `Dockerfile` builds only the Node server. Upload allowlists exclude local cr
 
 The development service is `relic-rush-server` in `us-central1`, close to the existing `nam5` Firestore database. Use one manually scaled instance with CPU allocated between requests and a 3600-second connection timeout. Socket.IO reconnects when Cloud Run closes an expired connection. `CLIENT_ORIGIN` accepts a comma-separated list of permitted frontend origins. Use the stable branch preview URL when testing newer Pages builds.
 
+Deploy server changes from the repository root (this builds the Dockerfile and preserves the existing service configuration):
+
+```sh
+gcloud run deploy relic-rush-server --source . --project relic-rush-dev --region us-central1
+```
+
+This deploys the server only; publish frontend changes separately through Cloudflare Pages. Existing lobbies retain their stored settings, so a rule change such as the relic count applies when the next lobby is created.
+
 Open a play window:
 
 ```sh

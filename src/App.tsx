@@ -61,7 +61,7 @@ function GameApp() {
           {game.error && <button className="text-sm underline" onClick={game.resetGame}>Return to lobby</button>}
         </>}
       </div>
-      <footer className="mt-6 flex items-center justify-between gap-3 text-xs text-gray-600"><span>6 × 6 board · 5 hidden treasures</span>
+      <footer className="mt-6 flex items-center justify-between gap-3 text-xs text-gray-600"><span>6 × 6 board · 8 hidden treasures</span>
         <a className="inline-flex min-h-11 items-center text-emerald-800 underline underline-offset-4" href={`?how-to-play=1&matchSeconds=${instructionsSeconds}`} target="_blank" rel="noopener noreferrer">How to play<span className="sr-only"> (opens in a new tab)</span><span aria-hidden="true" className="ml-1">↗</span></a>
       </footer>
     </div>

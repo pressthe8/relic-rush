@@ -37,7 +37,7 @@ export function SocketGameLobby({ game, currentPlayerId, hasJoined, ready, disab
         </div>
           <dl className="mt-4 grid grid-cols-4 gap-2 text-xs text-gray-600">
             <div><dt>Board</dt><dd className="mt-1 font-semibold text-gray-800">6 × 6</dd></div>
-            <div><dt>Treasures</dt><dd className="mt-1 font-semibold text-gray-800">{game.treasureCount} relics</dd></div>
+            <div><dt>Relics</dt><dd className="mt-1 font-semibold text-gray-800">{game.treasureCount} relics</dd></div>
             <div><dt>Initial digs</dt><dd className="mt-1 font-semibold text-gray-800">10 digs</dd></div>
             <div><dt>Duration</dt><dd className="mt-1 font-semibold text-gray-800">{game.matchSeconds % 60 === 0 ? `${game.matchSeconds / 60} min` : `${game.matchSeconds} sec`}</dd></div>
           </dl>
